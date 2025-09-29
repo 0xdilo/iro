@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
-use image::{ImageReader, Rgb, RgbImage};
+use image::{ImageReader, Rgb};
 use std::path::PathBuf;
-use std::collections::HashMap;
 use crate::{ColorScheme, config::{IroConfig, PaletteStyle}, palette::PaletteGenerator};
 
 pub struct ColorExtractor {

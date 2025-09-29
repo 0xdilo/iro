@@ -1,8 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{Arg, Command};
-use image::{ImageReader, Rgb};
 use std::path::PathBuf;
-use std::collections::HashMap;
 
 mod color_extractor;
 mod template_engine;
@@ -380,7 +378,7 @@ fn get_random_wallpapers_per_monitor(monitors: Option<&String>, primary_index: u
     let mut available_wallpapers = wallpapers.clone();
 
     println!("🎲 Selecting random wallpaper for each monitor:");
-    for (i, monitor) in monitor_list.iter().enumerate() {
+    for monitor in monitor_list.iter() {
         let selected = available_wallpapers.choose(&mut rng).unwrap().clone();
         println!("  {} → {}", monitor, selected.file_name().unwrap().to_string_lossy());
         selected_wallpapers.push(selected.clone());
@@ -426,14 +424,9 @@ fn run_init() -> Result<()> {
     template_engine.create_default_templates()?;
     println!("  ✓ Installed color templates");
 
-    // 3. Copy wallpaper script
-    println!("\n🖼️  Installing wallpaper script...");
-    let script_path = hypr_scripts.join("random_wallpaper.sh");
-    let current_exe = std::env::current_exe()?;
-    let project_dir = current_exe.parent().unwrap().parent().unwrap().parent().unwrap();
-
-    // Check if script exists in project
-    if let Ok(script_content) = std::fs::read_to_string(config_dir.join("hypr/scripts/random_wallpaper.sh")) {
+    // 3. Wallpaper script
+    println!("\n🖼️  Wallpaper script...");
+    if std::fs::metadata(config_dir.join("hypr/scripts/random_wallpaper.sh")).is_ok() {
         println!("  ✓ Wallpaper script already exists");
     } else {
         println!("  ⚠ Please manually copy random_wallpaper.sh to ~/.config/hypr/scripts/");
