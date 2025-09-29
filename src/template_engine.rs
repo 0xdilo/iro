@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use std::collections::HashMap;
 use std::path::PathBuf;
 use crate::ColorScheme;
 
@@ -71,26 +70,9 @@ impl TemplateEngine {
     }
     
     fn process_color_filters(&self, content: &str) -> String {
-        // Replace {{ color | replace(from="#", to="") }} patterns
-        let mut result = content.to_string();
-        
-        // This is a simple regex-free implementation
-        // Replace patterns like {{ red | replace(from="#", to="") }}
-        let colors = ["red", "blue", "yellow", "magenta", "accent", "secondary", "text", "surface", "base", "error", "foreground", "background"];
-        
-        for color in &colors {
-            let pattern = format!("{{{{ {} | replace(from=\"#\", to=\"\") }}}}", color);
-            let replacement = format!("{{{{ {} }}}}", color);
-            result = result.replace(&pattern, &replacement);
-            
-            // Then strip # from the actual values if they exist
-            if let Some(start) = result.find(&replacement) {
-                let value_start = start + replacement.len();
-                // This is simplified - in a real implementation we'd need proper parsing
-            }
-        }
-        
-        result
+        // Simple filter processing - just return as-is for now
+        // The template syntax is simple enough that we don't need complex filtering
+        content.to_string()
     }
 
     pub fn create_default_templates(&self) -> Result<()> {

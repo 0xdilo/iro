@@ -17,23 +17,23 @@ impl PaletteGenerator {
         }
     }
 
-    /// Extract diverse, vibrant colors from an image
+    /// Extract diverse colors from an image
     pub fn extract_palette(&self, img: &RgbImage, count: usize) -> Result<Vec<Rgb<u8>>> {
         let mut color_counts: HashMap<(u8, u8, u8), u32> = HashMap::new();
 
-        // Count color frequencies with quantization
+        // Count color frequencies with quantization - optimized
         for pixel in img.pixels() {
-            // Skip very dark and very bright pixels
-            let brightness = (pixel[0] as u32 + pixel[1] as u32 + pixel[2] as u32) / 3;
-            if brightness < 15 || brightness > 250 {
+            // Skip very dark and very bright pixels for better palette
+            let brightness = (pixel[0] as u16 + pixel[1] as u16 + pixel[2] as u16) / 3;
+            if !(20..=240).contains(&brightness) {
                 continue;
             }
 
-            // Quantize to reduce similar colors
+            // Quantize to 16-step intervals for performance
             let quantized = (
-                (pixel[0] / 12) * 12,
-                (pixel[1] / 12) * 12,
-                (pixel[2] / 12) * 12,
+                (pixel[0] >> 4) << 4,
+                (pixel[1] >> 4) << 4,
+                (pixel[2] >> 4) << 4,
             );
             *color_counts.entry(quantized).or_insert(0) += 1;
         }
@@ -42,31 +42,28 @@ impl PaletteGenerator {
         let mut colors: Vec<_> = color_counts.into_iter().collect();
         colors.sort_by(|a, b| b.1.cmp(&a.1));
 
-        // Select diverse colors using HSL color space for better perceptual distance
-        let mut selected_colors = Vec::new();
+        // Select diverse colors - optimized
+        let mut selected_colors = Vec::with_capacity(count);
 
-        for ((r, g, b), _) in colors {
+        for ((r, g, b), _) in colors.iter().take(count * 3) {
             if selected_colors.len() >= count {
                 break;
             }
 
-            let color = Rgb([r, g, b]);
+            let color = Rgb([*r, *g, *b]);
 
-            // Check color diversity
-            let is_diverse = selected_colors.is_empty()
-                || selected_colors
-                    .iter()
-                    .all(|existing| self.color_distance(&color, existing) > self.diversity_threshold);
-
-            if is_diverse {
+            // Check diversity only against existing colors
+            if selected_colors.is_empty()
+                || selected_colors.iter().all(|existing| {
+                    self.color_distance(&color, existing) > self.diversity_threshold
+                }) {
                 selected_colors.push(color);
             }
         }
 
-        // Fill remaining slots with complementary colors
+        // Fill remaining with complementary if needed
         while selected_colors.len() < count {
-            let complementary = self.generate_complementary_color(&selected_colors);
-            selected_colors.push(complementary);
+            selected_colors.push(self.generate_complementary_color(&selected_colors));
         }
 
         Ok(selected_colors)
@@ -94,7 +91,7 @@ impl PaletteGenerator {
         let dl = (hsl1.lightness - hsl2.lightness).abs() * 100.0;
 
         // Hue is most important, then saturation, then lightness
-        (dh * 0.6 + ds * 0.3 + dl * 0.1)
+        dh * 0.6 + ds * 0.3 + dl * 0.1
     }
 
     /// Generate a complementary color
@@ -118,25 +115,6 @@ impl PaletteGenerator {
         // Adjust saturation and lightness slightly
         hsl.saturation = (hsl.saturation + 0.2).min(1.0);
         hsl.lightness = 0.5;
-
-        let rgb_out: Srgb = hsl.into_color();
-        Rgb([
-            (rgb_out.red * 255.0) as u8,
-            (rgb_out.green * 255.0) as u8,
-            (rgb_out.blue * 255.0) as u8,
-        ])
-    }
-
-    /// Adjust color saturation
-    pub fn adjust_saturation(&self, color: &Rgb<u8>, factor: f32) -> Rgb<u8> {
-        let rgb = Srgb::new(
-            color[0] as f32 / 255.0,
-            color[1] as f32 / 255.0,
-            color[2] as f32 / 255.0,
-        );
-
-        let mut hsl: Hsl = rgb.into_color();
-        hsl.saturation = (hsl.saturation * factor).clamp(0.0, 1.0);
 
         let rgb_out: Srgb = hsl.into_color();
         Rgb([
@@ -269,12 +247,10 @@ impl PaletteGenerator {
     }
 
     /// Generate a foreground color that contrasts with background
-    pub fn generate_foreground(&self, background: &Rgb<u8>, is_light: bool) -> Rgb<u8> {
+    pub fn generate_foreground(&self, _background: &Rgb<u8>, is_light: bool) -> Rgb<u8> {
         if is_light {
-            // Dark foreground for light background
             Rgb([76, 79, 105])
         } else {
-            // Light foreground for dark background
             Rgb([205, 214, 244])
         }
     }

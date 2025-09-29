@@ -133,7 +133,7 @@ impl WallpaperPickerApp {
             let sender = sender.clone();
 
             thread::spawn(move || {
-                let chunk_size = (wallpapers.len() + 3) / 4;
+                let chunk_size = wallpapers.len().div_ceil(4);
                 let start = chunk_idx * chunk_size;
                 let end = (start + chunk_size).min(wallpapers.len());
 

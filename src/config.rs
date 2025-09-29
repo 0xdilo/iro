@@ -56,7 +56,6 @@ pub struct PaletteConfig {
 
 #[derive(Debug, Clone)]
 pub struct PaletteStyle {
-    pub name: &'static str,
     pub description: &'static str,
     pub dark_saturation: f32,
     pub light_saturation: f32,
@@ -70,7 +69,6 @@ impl PaletteStyle {
     pub fn from_name(name: &str) -> Self {
         match name {
             "nord" => Self {
-                name: "nord",
                 description: "Cool nordic minimal",
                 dark_saturation: 0.35,
                 light_saturation: 0.3,
@@ -80,7 +78,6 @@ impl PaletteStyle {
                 warmth_shift: -0.12,
             },
             "warm" => Self {
-                name: "warm",
                 description: "Cozy warm tones",
                 dark_saturation: 0.4,
                 light_saturation: 0.35,
@@ -90,7 +87,6 @@ impl PaletteStyle {
                 warmth_shift: 0.15,
             },
             "muted" => Self {
-                name: "muted",
                 description: "Soft neutral palette",
                 dark_saturation: 0.38,
                 light_saturation: 0.33,
@@ -100,7 +96,6 @@ impl PaletteStyle {
                 warmth_shift: 0.02,
             },
             _ => Self { // "lofi" default
-                name: "lofi",
                 description: "Calm balanced aesthetic",
                 dark_saturation: 0.42,
                 light_saturation: 0.37,
