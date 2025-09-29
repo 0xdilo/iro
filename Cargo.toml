@@ -16,6 +16,8 @@ eframe = "0.28"
 egui = "0.28"
 egui_extras = { version = "0.28", features = ["image"] }
 rand = "0.8"
+toml = "0.8"
+palette = "0.7"
 
 [[bin]]
 name = "iro"

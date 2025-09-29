@@ -8,6 +8,8 @@ mod color_extractor;
 mod template_engine;
 mod config_generator;
 mod gui;
+mod config;
+mod palette;
 
 use color_extractor::ColorExtractor;
 use template_engine::TemplateEngine;
@@ -138,7 +140,7 @@ fn main() -> Result<()> {
     println!("🎨 iro - Generating color scheme from: {}", primary_wallpaper.display());
 
     // Extract colors from primary wallpaper
-    let extractor = ColorExtractor::new();
+    let extractor = ColorExtractor::new()?;
     let color_scheme = extractor.extract_colors(&primary_wallpaper, theme)?;
     
     println!("✨ Extracted color scheme:");
