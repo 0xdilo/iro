@@ -3,7 +3,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
 use anyhow::{Context, Result};
 use eframe::egui;
-use crate::{ColorExtractor, ConfigGenerator};
+use crate::{ColorExtractor, ConfigGenerator, config::{IroConfig, PaletteStyle}};
 
 pub struct WallpaperPickerApp {
     wallpaper_dir: PathBuf,
@@ -13,12 +13,15 @@ pub struct WallpaperPickerApp {
     texture_cache: Vec<Option<egui::TextureHandle>>,
     status_message: String,
     applying_theme: bool,
-    theme_sender: Option<mpsc::Sender<PathBuf>>,
+    theme_sender: Option<mpsc::Sender<(PathBuf, String, String)>>, // (path, theme, style)
     theme_receiver: mpsc::Receiver<String>,
     thumbnail_receiver: mpsc::Receiver<(usize, egui::ColorImage)>,
     search_filter: String,
     grid_columns: usize,
     loading_started: bool,
+    theme_mode: String, // "dark" or "light"
+    palette_style: String,
+    show_style_menu: bool,
 }
 
 impl WallpaperPickerApp {
@@ -27,15 +30,20 @@ impl WallpaperPickerApp {
             .map(|h| h.join("Pictures").join("wallpaper"))
             .unwrap_or_else(|| PathBuf::from("."));
 
-        let (theme_sender, theme_receiver_internal) = mpsc::channel::<PathBuf>();
+        let (theme_sender, theme_receiver_internal) = mpsc::channel::<(PathBuf, String, String)>();
         let (status_sender, theme_receiver) = mpsc::channel::<String>();
         let (thumbnail_sender, thumbnail_receiver) = mpsc::channel::<(usize, egui::ColorImage)>();
         let thumbnail_loader = thumbnail_sender.clone();
 
+        // Load config to get defaults
+        let config = IroConfig::load().unwrap_or_default();
+        let default_theme = config.theme.mode.clone();
+        let default_style = config.palette.style.clone();
+
         // Spawn background thread for applying themes
         thread::spawn(move || {
-            while let Ok(wallpaper_path) = theme_receiver_internal.recv() {
-                let result = apply_theme_background(&wallpaper_path);
+            while let Ok((wallpaper_path, theme, style)) = theme_receiver_internal.recv() {
+                let result = apply_theme_with_settings(&wallpaper_path, &theme, &style);
                 let message = match result {
                     Ok(_) => "✅ Theme applied successfully!".to_string(),
                     Err(e) => format!("❌ Error: {}", e),
@@ -58,6 +66,9 @@ impl WallpaperPickerApp {
             search_filter: String::new(),
             grid_columns: 4,
             loading_started: false,
+            theme_mode: default_theme,
+            palette_style: default_style,
+            show_style_menu: false,
         };
 
         app.load_wallpapers();
@@ -149,9 +160,11 @@ impl WallpaperPickerApp {
             }
 
             let wallpaper_path = self.wallpapers[index].clone();
+            let theme = self.theme_mode.clone();
+            let style = self.palette_style.clone();
 
             if let Some(sender) = &self.theme_sender {
-                if sender.send(wallpaper_path).is_ok() {
+                if sender.send((wallpaper_path, theme, style)).is_ok() {
                     self.applying_theme = true;
                     self.status_message = "⏳ Applying theme...".to_string();
                 }
@@ -209,8 +222,41 @@ impl eframe::App for WallpaperPickerApp {
                     ui.separator();
                     ui.add_space(8.0);
 
+                    // Theme mode toggle
+                    let theme_color = if self.theme_mode == "dark" {
+                        egui::Color32::from_rgb(90, 100, 120)
+                    } else {
+                        egui::Color32::from_rgb(200, 180, 120)
+                    };
+                    let theme_icon = if self.theme_mode == "dark" { "🌙" } else { "☀" };
+                    let theme_btn = egui::Button::new(egui::RichText::new(theme_icon).size(14.0))
+                        .fill(theme_color)
+                        .rounding(4.0)
+                        .min_size(egui::vec2(32.0, 24.0));
+
+                    if ui.add(theme_btn).on_hover_text("Toggle theme mode").clicked() {
+                        self.theme_mode = if self.theme_mode == "dark" { "light" } else { "dark" }.to_string();
+                    }
+
+                    ui.add_space(4.0);
+
+                    // Style selector button
+                    let style_display = self.palette_style.chars().next().unwrap().to_uppercase().to_string();
+                    let style_btn = egui::Button::new(egui::RichText::new(&style_display).size(12.0).color(egui::Color32::WHITE))
+                        .fill(egui::Color32::from_rgb(80, 90, 110))
+                        .rounding(4.0)
+                        .min_size(egui::vec2(32.0, 24.0));
+
+                    if ui.add(style_btn).on_hover_text(format!("Style: {}", self.palette_style)).clicked() {
+                        self.show_style_menu = !self.show_style_menu;
+                    }
+
+                    ui.add_space(8.0);
+                    ui.separator();
+                    ui.add_space(8.0);
+
                     // Simple search
-                    let search_response = ui.add(
+                    let _search_response = ui.add(
                         egui::TextEdit::singleline(&mut self.search_filter)
                             .hint_text("search...")
                             .desired_width(160.0)
@@ -256,6 +302,57 @@ impl eframe::App for WallpaperPickerApp {
                     });
                 });
             });
+
+        // Style menu popup
+        if self.show_style_menu {
+            egui::Window::new("palette style")
+                .collapsible(false)
+                .resizable(false)
+                .title_bar(false)
+                .fixed_pos(egui::pos2(100.0, 50.0))
+                .frame(egui::Frame::window(&ctx.style())
+                    .fill(egui::Color32::from_rgb(25, 25, 35))
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(60, 60, 80)))
+                    .rounding(6.0)
+                    .inner_margin(egui::Margin::same(8.0)))
+                .show(ctx, |ui| {
+                    ui.set_min_width(200.0);
+
+                    for style_name in PaletteStyle::all_styles() {
+                        let style = PaletteStyle::from_name(style_name);
+                        let is_current = &self.palette_style == style_name;
+
+                        let color = if is_current {
+                            egui::Color32::from_rgb(100, 120, 140)
+                        } else {
+                            egui::Color32::from_rgb(35, 35, 45)
+                        };
+
+                        let btn = egui::Button::new(
+                            egui::RichText::new(style_name)
+                                .size(12.0)
+                                .color(if is_current {
+                                    egui::Color32::WHITE
+                                } else {
+                                    egui::Color32::from_rgb(180, 180, 190)
+                                })
+                        )
+                        .fill(color)
+                        .rounding(4.0)
+                        .min_size(egui::vec2(180.0, 24.0));
+
+                        if ui.add(btn).on_hover_text(style.description).clicked() {
+                            self.palette_style = style_name.to_string();
+                            self.show_style_menu = false;
+                        }
+                    }
+
+                    ui.add_space(4.0);
+                    if ui.small_button("✕ close").clicked() {
+                        self.show_style_menu = false;
+                    }
+                });
+        }
 
         // Bottom status bar
         egui::TopBottomPanel::bottom("bottom_panel")
@@ -410,10 +507,15 @@ impl eframe::App for WallpaperPickerApp {
     }
 }
 
-fn apply_theme_background(wallpaper_path: &Path) -> Result<()> {
+fn apply_theme_with_settings(wallpaper_path: &Path, theme: &str, style: &str) -> Result<()> {
+    // Load and update config with selected style
+    let mut config = IroConfig::load().unwrap_or_default();
+    config.palette.style = style.to_string();
+    config.save()?;
+
     // Extract colors
-    let extractor = ColorExtractor::new();
-    let color_scheme = extractor.extract_colors(&wallpaper_path.to_path_buf(), "dark")?;
+    let extractor = ColorExtractor::new()?;
+    let color_scheme = extractor.extract_colors(&wallpaper_path.to_path_buf(), theme)?;
 
     // Generate configs
     let config_gen = ConfigGenerator::new()?;
