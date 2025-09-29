@@ -15,6 +15,7 @@ tokio = { version = "1.0", features = ["full"] }
 eframe = "0.28"
 egui = "0.28"
 egui_extras = { version = "0.28", features = ["image"] }
+rand = "0.8"
 
 [[bin]]
 name = "iro"
