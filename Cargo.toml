@@ -1,0 +1,21 @@
+[package]
+name = "iro"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+image = "0.25"
+clap = { version = "4.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+tera = "1.19"
+dirs = "5.0"
+tokio = { version = "1.0", features = ["full"] }
+eframe = "0.28"
+egui = "0.28"
+egui_extras = { version = "0.28", features = ["image"] }
+
+[[bin]]
+name = "iro"
+path = "src/main.rs"
