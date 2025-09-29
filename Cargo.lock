@@ -2253,6 +2253,7 @@ dependencies = [
  "egui",
  "egui_extras",
  "image",
+ "rand",
  "serde",
  "serde_json",
  "tera",

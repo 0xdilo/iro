@@ -88,8 +88,14 @@ Browse your wallpapers in a beautiful grid layout with real-time thumbnails. Fea
 # Generate theme from specific wallpaper
 iro /path/to/wallpaper.jpg
 
+# Random wallpaper from ~/Pictures/wallpaper/
+iro --random
+
 # Use light theme
 iro /path/to/wallpaper.jpg --theme light
+
+# Specify monitors (comma-separated)
+iro /path/to/wallpaper.jpg --monitors eDP-1,DP-3
 
 # Generate and reload applications
 iro /path/to/wallpaper.jpg --reload
@@ -118,11 +124,13 @@ iro creates/updates these files:
 
 ### Multi-Monitor Setup
 
-For multi-monitor wallpaper rotation, add to your Hyprland config:
+iro automatically applies wallpapers to all monitors. For automatic wallpaper rotation on startup, add to your Hyprland config:
 
 ```conf
-exec-once = ~/.config/hypr/scripts/random_wallpaper.sh
+exec-once = iro --random
 ```
+
+Or add it to your `~/.zshrc` / `~/.bashrc` for terminal startup theming.
 
 ## How It Works
 
