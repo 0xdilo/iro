@@ -124,7 +124,7 @@ impl Default for IroConfig {
                 mode: "dark".to_string(),
                 dark_background_style: "extracted".to_string(),
                 dark_background_custom: None,
-                light_background_style: "pure-light".to_string(),
+                light_background_style: "extracted".to_string(),
                 light_background_custom: None,
             },
             palette: PaletteConfig {

@@ -21,7 +21,8 @@ impl ColorExtractor {
             .context("Failed to decode image")?;
 
         let rgb_img = img.to_rgb8();
-        let resized = image::imageops::resize(&rgb_img, 200, 200, image::imageops::FilterType::Lanczos3);
+        // Use smaller size and faster filter for speed
+        let resized = image::imageops::resize(&rgb_img, 128, 128, image::imageops::FilterType::Nearest);
 
         // Use new palette generator with style
         let style = PaletteStyle::from_name(&self.config.palette.style);
@@ -39,7 +40,8 @@ impl ColorExtractor {
 
     fn generate_dark_scheme(&self, dominant_colors: Vec<Rgb<u8>>, palette_gen: &PaletteGenerator) -> ColorScheme {
         // Apply style-specific adjustments to colors
-        let enhanced: Vec<Rgb<u8>> = dominant_colors.iter()
+        let enhanced: Vec<Rgb<u8>> = dominant_colors
+            .iter()
             .map(|c| palette_gen.adjust_with_style(c, false))
             .collect();
 
@@ -50,8 +52,8 @@ impl ColorExtractor {
                 format!("#{:02x}{:02x}{:02x}", bg[0], bg[1], bg[2])
             }
             "custom" => {
-                self.config.theme.dark_background_custom.clone()
-                    .unwrap_or_else(|| "#1e1e2e".to_string())
+                self.config.theme.dark_background_custom.as_deref()
+                    .unwrap_or("#1e1e2e").to_string()
             }
             _ => "#1e1e2e".to_string(), // pure-dark
         };
@@ -62,7 +64,7 @@ impl ColorExtractor {
             format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2])
         };
 
-        let mut terminal_colors = Vec::new();
+        let mut terminal_colors = Vec::with_capacity(16);
 
         // Color 0: Dark background
         terminal_colors.push(background_color.clone());
@@ -79,9 +81,10 @@ impl ColorExtractor {
         terminal_colors.push(foreground_color.clone());
 
         // Colors 8-15: Brighter versions
+        // Color 8 is used by fish shell for autosuggestions - needs good contrast!
         let bright_bg = self.hex_to_rgb(&background_color)
-            .map(|c| palette_gen.adjust_brightness(&c, 1.8))
-            .unwrap_or(Rgb([69, 71, 90]));
+            .map(|c| palette_gen.adjust_brightness(&c, 3.0)) // Much brighter for readability
+            .unwrap_or(Rgb([100, 100, 120]));
         terminal_colors.push(format!("#{:02x}{:02x}{:02x}", bright_bg[0], bright_bg[1], bright_bg[2]));
 
         for i in 1..7 {
@@ -101,19 +104,20 @@ impl ColorExtractor {
             .unwrap_or(Rgb([255, 255, 255]));
         terminal_colors.push(format!("#{:02x}{:02x}{:02x}", bright_fg[0], bright_fg[1], bright_fg[2]));
 
-        // Pick most vibrant colors for accent and secondary
-        let mut sorted_by_vibrance = enhanced.clone();
-        sorted_by_vibrance.sort_by(|a, b| {
-            let vibrance_a = self.calculate_vibrance(a);
-            let vibrance_b = self.calculate_vibrance(b);
-            vibrance_b.partial_cmp(&vibrance_a).unwrap()
-        });
+        // Pick most vibrant colors for accent and secondary - avoid cloning
+        let mut sorted_by_vibrance: Vec<_> = enhanced
+            .iter()
+            .map(|c| (c, self.calculate_vibrance(c)))
+            .collect();
+        sorted_by_vibrance.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
-        let accent_color = &sorted_by_vibrance[0];
-        let secondary_color = sorted_by_vibrance.iter()
+        let accent_color = sorted_by_vibrance[0].0;
+        let secondary_color = sorted_by_vibrance
+            .iter()
             .skip(1)
+            .map(|(c, _)| *c)
             .find(|c| self.color_distance_simple(c, accent_color) > 80.0)
-            .unwrap_or(&sorted_by_vibrance[1.min(sorted_by_vibrance.len() - 1)]);
+            .unwrap_or(sorted_by_vibrance[1.min(sorted_by_vibrance.len() - 1)].0);
 
         // Generate surface color
         let surface_color = self.hex_to_rgb(&background_color)
@@ -133,7 +137,8 @@ impl ColorExtractor {
 
     fn generate_light_scheme(&self, dominant_colors: Vec<Rgb<u8>>, palette_gen: &PaletteGenerator) -> ColorScheme {
         // Apply style-specific adjustments to colors
-        let enhanced: Vec<Rgb<u8>> = dominant_colors.iter()
+        let enhanced: Vec<Rgb<u8>> = dominant_colors
+            .iter()
             .map(|c| palette_gen.adjust_with_style(c, true))
             .collect();
 
@@ -144,8 +149,8 @@ impl ColorExtractor {
                 format!("#{:02x}{:02x}{:02x}", bg[0], bg[1], bg[2])
             }
             "custom" => {
-                self.config.theme.light_background_custom.clone()
-                    .unwrap_or_else(|| "#eff1f5".to_string())
+                self.config.theme.light_background_custom.as_deref()
+                    .unwrap_or("#eff1f5").to_string()
             }
             _ => "#eff1f5".to_string(), // pure-light
         };
@@ -156,7 +161,7 @@ impl ColorExtractor {
             format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2])
         };
 
-        let mut terminal_colors = Vec::new();
+        let mut terminal_colors = Vec::with_capacity(16);
 
         // Color 0: Light background
         terminal_colors.push(background_color.clone());
@@ -172,9 +177,10 @@ impl ColorExtractor {
         terminal_colors.push(foreground_color.clone());
 
         // Colors 8-15: Brighter/darker variants
+        // Color 8 is used by fish shell for autosuggestions - needs good contrast!
         let bright_bg = self.hex_to_rgb(&background_color)
-            .map(|c| palette_gen.adjust_brightness(&c, 0.85))
-            .unwrap_or(Rgb([188, 192, 204]));
+            .map(|c| palette_gen.adjust_brightness(&c, 0.65)) // Much darker for readability
+            .unwrap_or(Rgb([140, 145, 160]));
         terminal_colors.push(format!("#{:02x}{:02x}{:02x}", bright_bg[0], bright_bg[1], bright_bg[2]));
 
         for i in 1..7 {
@@ -193,19 +199,20 @@ impl ColorExtractor {
             .unwrap_or(Rgb([0, 0, 0]));
         terminal_colors.push(format!("#{:02x}{:02x}{:02x}", bright_fg[0], bright_fg[1], bright_fg[2]));
 
-        // Pick most vibrant colors for accent and secondary
-        let mut sorted_by_vibrance = enhanced.clone();
-        sorted_by_vibrance.sort_by(|a, b| {
-            let vibrance_a = self.calculate_vibrance(a);
-            let vibrance_b = self.calculate_vibrance(b);
-            vibrance_b.partial_cmp(&vibrance_a).unwrap()
-        });
+        // Pick most vibrant colors for accent and secondary - avoid cloning
+        let mut sorted_by_vibrance: Vec<_> = enhanced
+            .iter()
+            .map(|c| (c, self.calculate_vibrance(c)))
+            .collect();
+        sorted_by_vibrance.sort_unstable_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
 
-        let accent_color = &sorted_by_vibrance[0];
-        let secondary_color = sorted_by_vibrance.iter()
+        let accent_color = sorted_by_vibrance[0].0;
+        let secondary_color = sorted_by_vibrance
+            .iter()
             .skip(1)
+            .map(|(c, _)| *c)
             .find(|c| self.color_distance_simple(c, accent_color) > 80.0)
-            .unwrap_or(&sorted_by_vibrance[1.min(sorted_by_vibrance.len() - 1)]);
+            .unwrap_or(sorted_by_vibrance[1.min(sorted_by_vibrance.len() - 1)].0);
 
         // Generate surface color
         let surface_color = self.hex_to_rgb(&background_color)
@@ -223,6 +230,7 @@ impl ColorExtractor {
         }
     }
 
+    #[inline]
     fn calculate_vibrance(&self, color: &Rgb<u8>) -> f32 {
         let max = color[0].max(color[1]).max(color[2]) as f32;
         let min = color[0].min(color[1]).min(color[2]) as f32;
@@ -232,10 +240,11 @@ impl ColorExtractor {
         (max - min) / max
     }
 
+    #[inline]
     fn color_distance_simple(&self, c1: &Rgb<u8>, c2: &Rgb<u8>) -> f32 {
-        let dr = (c1[0] as f32 - c2[0] as f32).abs();
-        let dg = (c1[1] as f32 - c2[1] as f32).abs();
-        let db = (c1[2] as f32 - c2[2] as f32).abs();
+        let dr = (c1[0] as i16 - c2[0] as i16) as f32;
+        let dg = (c1[1] as i16 - c2[1] as i16) as f32;
+        let db = (c1[2] as i16 - c2[2] as i16) as f32;
         (dr * dr + dg * dg + db * db).sqrt()
     }
 
