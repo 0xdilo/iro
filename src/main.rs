@@ -120,14 +120,13 @@ fn main() -> Result<()> {
         get_random_wallpapers_per_monitor(monitors, primary_index)?
     } else {
         // Manual mode: specify wallpapers, use --primary for theme
-        let wallpapers: Vec<String> = matches
+        let wallpapers: Vec<&str> = matches
             .get_many::<String>("wallpapers")
-            .map(|vals| vals.map(|s| s.to_string()).collect())
+            .map(|vals| vals.map(|s| s.as_str()).collect())
             .unwrap_or_default();
 
         if wallpapers.is_empty() {
-            eprintln!("Error: Wallpaper path(s) required (or use --gui/--random/--random-each)");
-            std::process::exit(1);
+            anyhow::bail!("Error: Wallpaper path(s) required (or use --gui/--random/--random-each)");
         }
 
         let paths: Vec<PathBuf> = wallpapers.iter().map(PathBuf::from).collect();
@@ -166,7 +165,7 @@ fn print_color_scheme(scheme: &ColorScheme) {
     println!("  Foreground: {}", scheme.foreground);
     println!("  Accent: {}", scheme.accent);
     println!("  Secondary: {}", scheme.secondary);
-    println!("  Colors: {:?}", &scheme.colors[0..8]);
+    println!("  Colors: {:?}", &scheme.colors[..8]);
 }
 
 fn reload_applications() -> Result<()> {
@@ -297,16 +296,15 @@ fn get_all_monitors() -> Result<Vec<String>> {
     let monitors_json: serde_json::Value = serde_json::from_slice(&output.stdout)
         .context("Failed to parse monitors JSON")?;
 
-    let mut monitors = Vec::new();
-    if let Some(array) = monitors_json.as_array() {
-        for monitor in array {
-            if let Some(name) = monitor.get("name").and_then(|n| n.as_str()) {
-                monitors.push(name.to_string());
-            }
-        }
-    }
-
-    Ok(monitors)
+    Ok(monitors_json
+        .as_array()
+        .map(|array| {
+            array
+                .iter()
+                .filter_map(|monitor| monitor.get("name")?.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default())
 }
 
 fn get_wallpapers_list() -> Result<Vec<PathBuf>> {
@@ -314,28 +312,25 @@ fn get_wallpapers_list() -> Result<Vec<PathBuf>> {
     let wallpaper_dir = home.join("Pictures/wallpaper");
 
     if !wallpaper_dir.exists() {
-        return Err(anyhow::anyhow!(
+        anyhow::bail!(
             "Wallpaper directory not found: {}. Run 'iro --init' first.",
             wallpaper_dir.display()
-        ));
+        );
     }
 
     let wallpapers: Vec<PathBuf> = std::fs::read_dir(&wallpaper_dir)?
-        .filter_map(|entry| entry.ok())
+        .filter_map(Result::ok)
         .map(|e| e.path())
         .filter(|path| {
             path.is_file() && matches!(
                 path.extension().and_then(|s| s.to_str()),
-                Some("jpg") | Some("jpeg") | Some("png") | Some("webp")
+                Some("jpg" | "jpeg" | "png" | "webp")
             )
         })
         .collect();
 
     if wallpapers.is_empty() {
-        return Err(anyhow::anyhow!(
-            "No wallpapers found in {}",
-            wallpaper_dir.display()
-        ));
+        anyhow::bail!("No wallpapers found in {}", wallpaper_dir.display());
     }
 
     Ok(wallpapers)
@@ -368,31 +363,32 @@ fn get_random_wallpapers_per_monitor(monitors: Option<&String>, primary_index: u
         get_all_monitors()?
     };
 
-    let num_monitors = monitor_list.len();
-    if num_monitors == 0 {
-        return Err(anyhow::anyhow!("No monitors found"));
+    if monitor_list.is_empty() {
+        anyhow::bail!("No monitors found");
     }
 
     // Select random wallpapers for each monitor
-    let mut selected_wallpapers: Vec<PathBuf> = Vec::new();
-    let mut available_wallpapers = wallpapers.clone();
+    let mut selected_wallpapers = Vec::with_capacity(monitor_list.len());
+    let mut available_wallpapers = wallpapers;
 
     println!("🎲 Selecting random wallpaper for each monitor:");
-    for monitor in monitor_list.iter() {
-        let selected = available_wallpapers.choose(&mut rng).unwrap().clone();
-        println!("  {} → {}", monitor, selected.file_name().unwrap().to_string_lossy());
-        selected_wallpapers.push(selected.clone());
+    for monitor in &monitor_list {
+        if let Some(selected) = available_wallpapers.choose(&mut rng).cloned() {
+            println!("  {} → {}", monitor, selected.file_name().unwrap().to_string_lossy());
+            selected_wallpapers.push(selected.clone());
 
-        // Remove selected to avoid duplicates if possible
-        if available_wallpapers.len() > 1 {
-            available_wallpapers.retain(|p| p != &selected);
+            // Remove selected to avoid duplicates if possible
+            if available_wallpapers.len() > 1 {
+                available_wallpapers.retain(|p| p != &selected);
+            }
         }
     }
 
     // Get primary wallpaper for theme extraction
     let primary_wallpaper = selected_wallpapers
         .get(primary_index)
-        .unwrap_or(&selected_wallpapers[0])
+        .or_else(|| selected_wallpapers.first())
+        .context("No wallpapers selected")?
         .clone();
 
     Ok((selected_wallpapers, primary_wallpaper))

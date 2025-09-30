@@ -19,7 +19,7 @@ impl PaletteGenerator {
 
     /// Extract diverse colors from an image
     pub fn extract_palette(&self, img: &RgbImage, count: usize) -> Result<Vec<Rgb<u8>>> {
-        let mut color_counts: HashMap<(u8, u8, u8), u32> = HashMap::new();
+        let mut color_counts: HashMap<(u8, u8, u8), u32> = HashMap::with_capacity(4096);
 
         // Count color frequencies with quantization - optimized
         for pixel in img.pixels() {
@@ -40,7 +40,7 @@ impl PaletteGenerator {
 
         // Sort by frequency
         let mut colors: Vec<_> = color_counts.into_iter().collect();
-        colors.sort_by(|a, b| b.1.cmp(&a.1));
+        colors.sort_unstable_by(|a, b| b.1.cmp(&a.1));
 
         // Select diverse colors - optimized
         let mut selected_colors = Vec::with_capacity(count);
@@ -69,29 +69,16 @@ impl PaletteGenerator {
         Ok(selected_colors)
     }
 
-    /// Calculate perceptual color distance using HSL
+    /// Calculate color distance - simplified for speed
+    #[inline]
     fn color_distance(&self, c1: &Rgb<u8>, c2: &Rgb<u8>) -> f32 {
-        let rgb1 = Srgb::new(
-            c1[0] as f32 / 255.0,
-            c1[1] as f32 / 255.0,
-            c1[2] as f32 / 255.0,
-        );
-        let rgb2 = Srgb::new(
-            c2[0] as f32 / 255.0,
-            c2[1] as f32 / 255.0,
-            c2[2] as f32 / 255.0,
-        );
+        // Simple euclidean distance in RGB space - much faster than HSL conversion
+        let dr = (c1[0] as i16 - c2[0] as i16).abs() as f32;
+        let dg = (c1[1] as i16 - c2[1] as i16).abs() as f32;
+        let db = (c1[2] as i16 - c2[2] as i16).abs() as f32;
 
-        let hsl1: Hsl = rgb1.into_color();
-        let hsl2: Hsl = rgb2.into_color();
-
-        // Weighted distance considering hue, saturation, and lightness
-        let dh = (hsl1.hue.into_positive_degrees() - hsl2.hue.into_positive_degrees()).abs().min(360.0 - (hsl1.hue.into_positive_degrees() - hsl2.hue.into_positive_degrees()).abs());
-        let ds = (hsl1.saturation - hsl2.saturation).abs() * 100.0;
-        let dl = (hsl1.lightness - hsl2.lightness).abs() * 100.0;
-
-        // Hue is most important, then saturation, then lightness
-        dh * 0.6 + ds * 0.3 + dl * 0.1
+        // Weighted for human perception (green more sensitive)
+        dr * 0.3 + dg * 0.59 + db * 0.11
     }
 
     /// Generate a complementary color
@@ -125,6 +112,7 @@ impl PaletteGenerator {
     }
 
     /// Adjust color with style-specific modifications
+    #[inline]
     pub fn adjust_with_style(&self, color: &Rgb<u8>, is_light: bool) -> Rgb<u8> {
         let rgb = Srgb::new(
             color[0] as f32 / 255.0,
@@ -135,32 +123,24 @@ impl PaletteGenerator {
         let mut hsl: Hsl = rgb.into_color();
 
         // Apply style-specific adjustments
-        let sat_factor = if is_light {
-            self.style.light_saturation
+        let (sat_factor, bright_factor) = if is_light {
+            (self.style.light_saturation, self.style.light_brightness)
         } else {
-            self.style.dark_saturation
+            (self.style.dark_saturation, self.style.dark_brightness)
         };
 
-        let bright_factor = if is_light {
-            self.style.light_brightness
-        } else {
-            self.style.dark_brightness
-        };
-
-        // Apply warmth shift
-        if self.style.warmth_shift != 0.0 {
-            let hue_shift = self.style.warmth_shift * 30.0; // Max 30 degree shift
-            hsl.hue = hsl.hue + hue_shift;
+        // Apply warmth shift if needed
+        if self.style.warmth_shift.abs() > 0.001 {
+            hsl.hue = hsl.hue + (self.style.warmth_shift * 30.0);
         }
 
         // Apply saturation and brightness
         hsl.saturation = (hsl.saturation * sat_factor).clamp(0.0, 1.0);
         hsl.lightness = (hsl.lightness * bright_factor).clamp(0.0, 1.0);
 
-        // Apply contrast
-        if self.style.contrast != 1.0 {
-            let mid = 0.5;
-            hsl.lightness = mid + (hsl.lightness - mid) * self.style.contrast;
+        // Apply contrast if needed
+        if (self.style.contrast - 1.0).abs() > 0.001 {
+            hsl.lightness = 0.5 + (hsl.lightness - 0.5) * self.style.contrast;
             hsl.lightness = hsl.lightness.clamp(0.0, 1.0);
         }
 
@@ -191,7 +171,7 @@ impl PaletteGenerator {
         ])
     }
 
-    /// Generate a background color from palette
+    /// Generate a background color from palette - intelligently based on image tone
     pub fn generate_background(&self, colors: &[Rgb<u8>], is_light: bool) -> Rgb<u8> {
         if colors.is_empty() {
             return if is_light {
@@ -201,9 +181,10 @@ impl PaletteGenerator {
             };
         }
 
-        // Find the most muted color (lowest saturation)
-        let mut best_color = colors[0];
-        let mut lowest_saturation = 1.0;
+        // Calculate average brightness and saturation of the palette
+        let mut total_lightness = 0.0;
+        let mut total_saturation = 0.0;
+        let mut hue_accumulator = (0.0, 0.0); // (sin, cos) for circular mean
 
         for color in colors {
             let rgb = Srgb::new(
@@ -213,29 +194,36 @@ impl PaletteGenerator {
             );
             let hsl: Hsl = rgb.into_color();
 
-            if hsl.saturation < lowest_saturation {
-                lowest_saturation = hsl.saturation;
-                best_color = *color;
-            }
+            total_lightness += hsl.lightness;
+            total_saturation += hsl.saturation;
+
+            // Accumulate hue using circular statistics
+            let hue_rad = hsl.hue.into_positive_degrees() * std::f32::consts::PI / 180.0;
+            hue_accumulator.0 += hue_rad.sin() * hsl.saturation;
+            hue_accumulator.1 += hue_rad.cos() * hsl.saturation;
         }
 
-        // Adjust the color for background use
-        let rgb = Srgb::new(
-            best_color[0] as f32 / 255.0,
-            best_color[1] as f32 / 255.0,
-            best_color[2] as f32 / 255.0,
-        );
+        let avg_lightness = total_lightness / colors.len() as f32;
+        let avg_saturation = total_saturation / colors.len() as f32;
 
-        let mut hsl: Hsl = rgb.into_color();
+        // Calculate dominant hue
+        let dominant_hue = if hue_accumulator.0.abs() < 0.001 && hue_accumulator.1.abs() < 0.001 {
+            0.0 // Neutral/grey
+        } else {
+            hue_accumulator.0.atan2(hue_accumulator.1) * 180.0 / std::f32::consts::PI
+        };
+
+        // Generate background based on palette characteristics
+        let mut hsl = Hsl::new(dominant_hue, 0.0, 0.0);
 
         if is_light {
-            // Very light, desaturated background
-            hsl.lightness = 0.94;
-            hsl.saturation = (hsl.saturation * 0.3).min(0.1);
+            // Light mode: very light, subtle tint from dominant hue
+            hsl.lightness = 0.91 + (avg_lightness * 0.06); // 0.91-0.97 range - more variation
+            hsl.saturation = (avg_saturation * 0.25).min(0.12); // More visible tint
         } else {
-            // Very dark, slightly saturated background
-            hsl.lightness = 0.12;
-            hsl.saturation = (hsl.saturation * 0.4).min(0.15);
+            // Dark mode: adapt to wallpaper brightness - brighter walls get darker bg, dark walls get lighter bg
+            hsl.lightness = 0.06 + (1.0 - avg_lightness) * 0.12; // 0.06-0.18 range - much wider!
+            hsl.saturation = (avg_saturation * 0.4).min(0.18); // More saturated for visible tint
         }
 
         let rgb_out: Srgb = hsl.into_color();
@@ -247,11 +235,33 @@ impl PaletteGenerator {
     }
 
     /// Generate a foreground color that contrasts with background
-    pub fn generate_foreground(&self, _background: &Rgb<u8>, is_light: bool) -> Rgb<u8> {
+    pub fn generate_foreground(&self, background: &Rgb<u8>, is_light: bool) -> Rgb<u8> {
+        // Extract hue from background
+        let bg_rgb = Srgb::new(
+            background[0] as f32 / 255.0,
+            background[1] as f32 / 255.0,
+            background[2] as f32 / 255.0,
+        );
+        let bg_hsl: Hsl = bg_rgb.into_color();
+
+        // Create foreground with same hue but high contrast
+        let mut fg_hsl = bg_hsl;
+
         if is_light {
-            Rgb([76, 79, 105])
+            // Dark text on light background
+            fg_hsl.lightness = 0.25;
+            fg_hsl.saturation = (bg_hsl.saturation * 0.5).min(0.15); // Subtle tint
         } else {
-            Rgb([205, 214, 244])
+            // Light text on dark background
+            fg_hsl.lightness = 0.85;
+            fg_hsl.saturation = (bg_hsl.saturation * 0.4).min(0.12); // Subtle tint
         }
+
+        let fg_rgb: Srgb = fg_hsl.into_color();
+        Rgb([
+            (fg_rgb.red * 255.0) as u8,
+            (fg_rgb.green * 255.0) as u8,
+            (fg_rgb.blue * 255.0) as u8,
+        ])
     }
 }

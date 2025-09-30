@@ -22,11 +22,9 @@ impl TemplateEngine {
 
     pub fn render_template(&self, template_name: &str, color_scheme: &ColorScheme) -> Result<String> {
         let template_path = self.templates_dir.join(template_name);
-        let template_content = std::fs::read_to_string(&template_path)
+        let mut rendered = std::fs::read_to_string(&template_path)
             .with_context(|| format!("Failed to read template: {}", template_name))?;
-        
-        let mut rendered = template_content;
-        
+
         // Simple template variable replacement
         rendered = rendered.replace("{{ background }}", &color_scheme.background);
         rendered = rendered.replace("{{ foreground }}", &color_scheme.foreground);
@@ -34,46 +32,34 @@ impl TemplateEngine {
         rendered = rendered.replace("{{ secondary }}", &color_scheme.secondary);
         rendered = rendered.replace("{{ surface }}", &color_scheme.surface);
         rendered = rendered.replace("{{ error }}", &color_scheme.error);
-        
-        // Individual colors
-        for (i, color) in color_scheme.colors.iter().enumerate() {
-            rendered = rendered.replace(&format!("{{{{ colors.{} }}}}", i), color);
+
+        // Individual colors - use direct indexing to avoid repeated lookups
+        for i in 0..color_scheme.colors.len() {
+            if let Some(color) = color_scheme.colors.get(i) {
+                rendered = rendered.replace(&format!("{{{{ colors.{} }}}}", i), color);
+            }
         }
-        
-        // Named colors for convenience
-        if let Some(red) = color_scheme.colors.get(1) {
-            rendered = rendered.replace("{{ red }}", red);
+
+        // Named colors for convenience - use array slicing to avoid repeated get calls
+        let named_colors = [
+            ("{{ red }}", 1),
+            ("{{ green }}", 2),
+            ("{{ yellow }}", 3),
+            ("{{ blue }}", 4),
+            ("{{ magenta }}", 5),
+            ("{{ cyan }}", 6),
+            ("{{ white }}", 7),
+        ];
+
+        for (name, idx) in &named_colors {
+            if let Some(color) = color_scheme.colors.get(*idx) {
+                rendered = rendered.replace(name, color);
+            }
         }
-        if let Some(green) = color_scheme.colors.get(2) {
-            rendered = rendered.replace("{{ green }}", green);
-        }
-        if let Some(yellow) = color_scheme.colors.get(3) {
-            rendered = rendered.replace("{{ yellow }}", yellow);
-        }
-        if let Some(blue) = color_scheme.colors.get(4) {
-            rendered = rendered.replace("{{ blue }}", blue);
-        }
-        if let Some(magenta) = color_scheme.colors.get(5) {
-            rendered = rendered.replace("{{ magenta }}", magenta);
-        }
-        if let Some(cyan) = color_scheme.colors.get(6) {
-            rendered = rendered.replace("{{ cyan }}", cyan);
-        }
-        if let Some(white) = color_scheme.colors.get(7) {
-            rendered = rendered.replace("{{ white }}", white);
-        }
-        
-        // Handle hex color stripping for certain formats
-        rendered = self.process_color_filters(&rendered);
-        
+
         Ok(rendered)
     }
     
-    fn process_color_filters(&self, content: &str) -> String {
-        // Simple filter processing - just return as-is for now
-        // The template syntax is simple enough that we don't need complex filtering
-        content.to_string()
-    }
 
     pub fn create_default_templates(&self) -> Result<()> {
         self.create_waybar_template()?;

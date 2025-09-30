@@ -22,3 +22,15 @@ palette = "0.7"
 [[bin]]
 name = "iro"
 path = "src/main.rs"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+opt-level = 3
+strip = true
+panic = "abort"
+overflow-checks = false
+
+[profile.dev]
+opt-level = 1
+overflow-checks = true
