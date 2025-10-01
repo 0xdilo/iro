@@ -88,8 +88,11 @@ Browse your wallpapers in a beautiful grid layout with real-time thumbnails. Fea
 # Generate theme from specific wallpaper
 iro /path/to/wallpaper.jpg
 
-# Random wallpaper from ~/Pictures/wallpaper/
+# Random wallpaper from ~/Pictures/wallpaper/ (same on all monitors)
 iro --random
+
+# Random wallpaper per monitor (different on each)
+iro --random-each
 
 # Use light theme
 iro /path/to/wallpaper.jpg --theme light
@@ -124,13 +127,11 @@ iro creates/updates these files:
 
 ### Multi-Monitor Setup
 
-iro automatically applies wallpapers to all monitors. For automatic wallpaper rotation on startup, add to your Hyprland config:
-
-```conf
-exec-once = iro --random
-```
-
-Or add it to your `~/.zshrc` / `~/.bashrc` for terminal startup theming.
+iro automatically applies wallpapers to all monitors. See [SETUP.md](SETUP.md) for optional configurations like:
+- Automatic wallpaper on Hyprland startup
+- Custom keybindings
+- Per-monitor wallpapers
+- And more!
 
 ## How It Works
 
