@@ -405,14 +405,11 @@ fn run_init() -> Result<()> {
     let wallpaper_dir = home.join("Pictures/wallpaper");
     let iro_config = config_dir.join("iro");
     let iro_templates = iro_config.join("templates");
-    let hypr_scripts = config_dir.join("hypr/scripts");
 
     std::fs::create_dir_all(&wallpaper_dir)?;
     std::fs::create_dir_all(&iro_templates)?;
-    std::fs::create_dir_all(&hypr_scripts)?;
     println!("  ✓ Created ~/Pictures/wallpaper");
     println!("  ✓ Created ~/.config/iro/templates");
-    println!("  ✓ Created ~/.config/hypr/scripts");
 
     // 2. Copy templates
     println!("\n📋 Installing templates...");
@@ -420,15 +417,7 @@ fn run_init() -> Result<()> {
     template_engine.create_default_templates()?;
     println!("  ✓ Installed color templates");
 
-    // 3. Wallpaper script
-    println!("\n🖼️  Wallpaper script...");
-    if std::fs::metadata(config_dir.join("hypr/scripts/random_wallpaper.sh")).is_ok() {
-        println!("  ✓ Wallpaper script already exists");
-    } else {
-        println!("  ⚠ Please manually copy random_wallpaper.sh to ~/.config/hypr/scripts/");
-    }
-
-    // 4. Shell integration
+    // 3. Shell integration
     println!("\n🐚 Shell integration...");
     let shell_rc = if std::env::var("SHELL").unwrap_or_default().contains("zsh") {
         home.join(".zshrc")
@@ -451,26 +440,13 @@ fn run_init() -> Result<()> {
         println!("  ✓ Created {} with iro integration", shell_rc.display());
     }
 
-    // 5. Hyprland integration
-    println!("\n🖥️  Hyprland integration...");
-    let hyprland_conf = config_dir.join("hypr/hyprland.conf");
-    if hyprland_conf.exists() {
-        let content = std::fs::read_to_string(&hyprland_conf)?;
-        if !content.contains("random_wallpaper.sh") {
-            println!("  ⚠ Add this line to your hyprland.conf:");
-            println!("    exec-once = ~/.config/hypr/scripts/random_wallpaper.sh");
-        } else {
-            println!("  ✓ Hyprland already configured");
-        }
-    } else {
-        println!("  ⚠ hyprland.conf not found");
-    }
-
     println!("\n✅ iro initialization complete!");
     println!("\n📝 Next steps:");
     println!("  1. Add wallpapers to ~/Pictures/wallpaper/");
     println!("  2. Run: iro --gui");
     println!("  3. Restart your shell or run: source {}", shell_rc.display());
+    println!("\n💡 Optional: Add to your hyprland.conf for automatic wallpaper on startup:");
+    println!("    exec-once = iro --random");
 
     Ok(())
 }
