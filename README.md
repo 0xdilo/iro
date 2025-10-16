@@ -32,6 +32,25 @@ cargo build --release
 cp target/release/iro ~/.cargo/bin/
 ```
 
+## Quick Start
+
+### Initialize iro
+
+```bash
+iro --init
+```
+
+This creates:
+- `~/Pictures/wallpaper/` directory
+- `~/.config/iro/` config and templates
+- Shell integration in `.bashrc`/`.zshrc`
+
+### Add wallpapers
+
+```bash
+cp /path/to/wallpapers/* ~/Pictures/wallpaper/
+```
+
 ## Usage
 
 ### GUI Mode
