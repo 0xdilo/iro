@@ -64,47 +64,10 @@ impl ColorExtractor {
             format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2])
         };
 
-        let mut terminal_colors = Vec::with_capacity(16);
+        // Generate intelligent terminal colors based on hue mapping
+        let terminal_colors = self.generate_terminal_colors(&enhanced, &background_color, &foreground_color, palette_gen, false);
 
-        // Color 0: Dark background
-        terminal_colors.push(background_color.clone());
-
-        // Colors 1-7: Use actual extracted colors with minimal forced adjustments
-        // Just use the extracted colors directly for more accurate representation
-        for i in 0..7 {
-            let idx = i % enhanced.len();
-            let color = &enhanced[idx];
-            terminal_colors.push(format!("#{:02x}{:02x}{:02x}", color[0], color[1], color[2]));
-        }
-
-        // Color 7: Light foreground
-        terminal_colors.push(foreground_color.clone());
-
-        // Colors 8-15: Brighter versions
-        // Color 8 is used by fish shell for autosuggestions - needs good contrast!
-        let bright_bg = self.hex_to_rgb(&background_color)
-            .map(|c| palette_gen.adjust_brightness(&c, 3.0)) // Much brighter for readability
-            .unwrap_or(Rgb([100, 100, 120]));
-        terminal_colors.push(format!("#{:02x}{:02x}{:02x}", bright_bg[0], bright_bg[1], bright_bg[2]));
-
-        for i in 1..7 {
-            let base_idx = i;
-            if let Some(base) = terminal_colors.get(base_idx) {
-                if let Ok(rgb) = self.hex_to_rgb(base) {
-                    let brighter = palette_gen.adjust_brightness(&rgb, 1.3);
-                    terminal_colors.push(format!("#{:02x}{:02x}{:02x}", brighter[0], brighter[1], brighter[2]));
-                } else {
-                    terminal_colors.push(base.clone());
-                }
-            }
-        }
-
-        let bright_fg = self.hex_to_rgb(&foreground_color)
-            .map(|c| palette_gen.adjust_brightness(&c, 1.1))
-            .unwrap_or(Rgb([255, 255, 255]));
-        terminal_colors.push(format!("#{:02x}{:02x}{:02x}", bright_fg[0], bright_fg[1], bright_fg[2]));
-
-        // Pick most vibrant colors for accent and secondary - avoid cloning
+        // Pick most vibrant colors for accent and secondary
         let mut sorted_by_vibrance: Vec<_> = enhanced
             .iter()
             .map(|c| (c, self.calculate_vibrance(c)))
@@ -161,43 +124,8 @@ impl ColorExtractor {
             format!("#{:02x}{:02x}{:02x}", fg[0], fg[1], fg[2])
         };
 
-        let mut terminal_colors = Vec::with_capacity(16);
-
-        // Color 0: Light background
-        terminal_colors.push(background_color.clone());
-
-        // Colors 1-7: Enhanced colors
-        for i in 0..7 {
-            let idx = i % enhanced.len();
-            let color = &enhanced[idx];
-            terminal_colors.push(format!("#{:02x}{:02x}{:02x}", color[0], color[1], color[2]));
-        }
-
-        // Color 7: Dark foreground
-        terminal_colors.push(foreground_color.clone());
-
-        // Colors 8-15: Brighter/darker variants
-        // Color 8 is used by fish shell for autosuggestions - needs good contrast!
-        let bright_bg = self.hex_to_rgb(&background_color)
-            .map(|c| palette_gen.adjust_brightness(&c, 0.65)) // Much darker for readability
-            .unwrap_or(Rgb([140, 145, 160]));
-        terminal_colors.push(format!("#{:02x}{:02x}{:02x}", bright_bg[0], bright_bg[1], bright_bg[2]));
-
-        for i in 1..7 {
-            if let Some(base) = terminal_colors.get(i) {
-                if let Ok(rgb) = self.hex_to_rgb(base) {
-                    let darker = palette_gen.adjust_brightness(&rgb, 0.8);
-                    terminal_colors.push(format!("#{:02x}{:02x}{:02x}", darker[0], darker[1], darker[2]));
-                } else {
-                    terminal_colors.push(base.clone());
-                }
-            }
-        }
-
-        let bright_fg = self.hex_to_rgb(&foreground_color)
-            .map(|c| palette_gen.adjust_brightness(&c, 0.7))
-            .unwrap_or(Rgb([0, 0, 0]));
-        terminal_colors.push(format!("#{:02x}{:02x}{:02x}", bright_fg[0], bright_fg[1], bright_fg[2]));
+        // Generate intelligent terminal colors based on hue mapping
+        let terminal_colors = self.generate_terminal_colors(&enhanced, &background_color, &foreground_color, palette_gen, true);
 
         // Pick most vibrant colors for accent and secondary - avoid cloning
         let mut sorted_by_vibrance: Vec<_> = enhanced
@@ -228,6 +156,189 @@ impl ColorExtractor {
             surface: format!("#{:02x}{:02x}{:02x}", surface_color[0], surface_color[1], surface_color[2]),
             error: "#d20f39".to_string(),
         }
+    }
+
+    /// Generate terminal colors (0-15) with intelligent hue mapping
+    fn generate_terminal_colors(
+        &self,
+        colors: &[Rgb<u8>],
+        background: &str,
+        foreground: &str,
+        palette_gen: &PaletteGenerator,
+        is_light: bool,
+    ) -> Vec<String> {
+        use palette::{Hsl, IntoColor, Srgb};
+
+        let mut terminal_colors = Vec::with_capacity(16);
+
+        // Color 0: Background
+        terminal_colors.push(background.to_string());
+
+        // Define hue ranges for terminal colors
+        // Red: 0-30°, Yellow: 30-90°, Green: 90-150°, Cyan: 150-210°, Blue: 210-270°, Magenta: 270-360°
+        let hue_ranges = [
+            (345.0, 30.0),   // Red (wraps around 0)
+            (30.0, 90.0),    // Yellow
+            (90.0, 150.0),   // Green
+            (150.0, 210.0),  // Cyan
+            (210.0, 270.0),  // Blue
+            (270.0, 345.0),  // Magenta
+        ];
+
+        // Find best color for each hue range
+        let mut base_colors = Vec::with_capacity(6);
+        for (hue_start, hue_end) in hue_ranges.iter() {
+            let best_color = self.find_color_in_hue_range(colors, *hue_start, *hue_end);
+
+            let color = if let Some(c) = best_color {
+                c
+            } else {
+                // Generate synthetic color in this hue range
+                self.generate_color_at_hue((*hue_start + *hue_end) / 2.0, is_light)
+            };
+
+            base_colors.push(color);
+        }
+
+        // Colors 1-6: Red, Yellow, Green, Cyan, Blue, Magenta
+        for color in base_colors.iter() {
+            // Boost saturation and adjust lightness for better visibility
+            let rgb = Srgb::new(
+                color[0] as f32 / 255.0,
+                color[1] as f32 / 255.0,
+                color[2] as f32 / 255.0,
+            );
+            let mut hsl: Hsl = rgb.into_color();
+
+            if is_light {
+                hsl.saturation = (hsl.saturation * 1.3).min(0.85);
+                hsl.lightness = (hsl.lightness * 0.75).clamp(0.35, 0.55);
+            } else {
+                hsl.saturation = (hsl.saturation * 1.4).min(0.9);
+                hsl.lightness = (hsl.lightness * 1.15).clamp(0.50, 0.70);
+            }
+
+            let rgb_out: Srgb = hsl.into_color();
+            terminal_colors.push(format!(
+                "#{:02x}{:02x}{:02x}",
+                (rgb_out.red * 255.0) as u8,
+                (rgb_out.green * 255.0) as u8,
+                (rgb_out.blue * 255.0) as u8
+            ));
+        }
+
+        // Color 7: Foreground
+        terminal_colors.push(foreground.to_string());
+
+        // Color 8: Bright black (comment color - needs good contrast)
+        let bright_bg = self.hex_to_rgb(background)
+            .map(|c| {
+                if is_light {
+                    palette_gen.adjust_brightness(&c, 0.65)
+                } else {
+                    palette_gen.adjust_brightness(&c, 3.0)
+                }
+            })
+            .unwrap_or(if is_light { Rgb([140, 145, 160]) } else { Rgb([100, 100, 120]) });
+        terminal_colors.push(format!("#{:02x}{:02x}{:02x}", bright_bg[0], bright_bg[1], bright_bg[2]));
+
+        // Colors 9-14: Bright versions of 1-6
+        for i in 1..=6 {
+            if let Ok(rgb) = self.hex_to_rgb(&terminal_colors[i]) {
+                let rgb_srgb = Srgb::new(
+                    rgb[0] as f32 / 255.0,
+                    rgb[1] as f32 / 255.0,
+                    rgb[2] as f32 / 255.0,
+                );
+                let mut hsl: Hsl = rgb_srgb.into_color();
+
+                if is_light {
+                    // Darker and more saturated for light mode
+                    hsl.saturation = (hsl.saturation * 1.15).min(0.95);
+                    hsl.lightness = (hsl.lightness * 0.85).clamp(0.30, 0.50);
+                } else {
+                    // Brighter and more saturated for dark mode
+                    hsl.saturation = (hsl.saturation * 1.2).min(0.95);
+                    hsl.lightness = (hsl.lightness * 1.25).clamp(0.60, 0.85);
+                }
+
+                let rgb_out: Srgb = hsl.into_color();
+                terminal_colors.push(format!(
+                    "#{:02x}{:02x}{:02x}",
+                    (rgb_out.red * 255.0) as u8,
+                    (rgb_out.green * 255.0) as u8,
+                    (rgb_out.blue * 255.0) as u8
+                ));
+            } else {
+                terminal_colors.push(terminal_colors[i].clone());
+            }
+        }
+
+        // Color 15: Bright white
+        let bright_fg = self.hex_to_rgb(foreground)
+            .map(|c| {
+                if is_light {
+                    palette_gen.adjust_brightness(&c, 0.7)
+                } else {
+                    palette_gen.adjust_brightness(&c, 1.1)
+                }
+            })
+            .unwrap_or(if is_light { Rgb([0, 0, 0]) } else { Rgb([255, 255, 255]) });
+        terminal_colors.push(format!("#{:02x}{:02x}{:02x}", bright_fg[0], bright_fg[1], bright_fg[2]));
+
+        terminal_colors
+    }
+
+    /// Find the best color in a hue range
+    fn find_color_in_hue_range(&self, colors: &[Rgb<u8>], hue_start: f32, hue_end: f32) -> Option<Rgb<u8>> {
+        use palette::{Hsl, IntoColor, Srgb};
+
+        let mut best_color: Option<(Rgb<u8>, f32)> = None;
+
+        for color in colors {
+            let rgb = Srgb::new(
+                color[0] as f32 / 255.0,
+                color[1] as f32 / 255.0,
+                color[2] as f32 / 255.0,
+            );
+            let hsl: Hsl = rgb.into_color();
+            let hue = hsl.hue.into_positive_degrees();
+
+            // Check if hue is in range (handle wraparound)
+            let in_range = if hue_start > hue_end {
+                // Wraparound case (e.g., red: 345-30)
+                hue >= hue_start || hue <= hue_end
+            } else {
+                hue >= hue_start && hue <= hue_end
+            };
+
+            if in_range {
+                let score = hsl.saturation * self.calculate_vibrance(color);
+                if best_color.is_none() || score > best_color.unwrap().1 {
+                    best_color = Some((*color, score));
+                }
+            }
+        }
+
+        best_color.map(|(c, _)| c)
+    }
+
+    /// Generate a synthetic color at a specific hue
+    fn generate_color_at_hue(&self, hue: f32, is_light: bool) -> Rgb<u8> {
+        use palette::{Hsl, IntoColor, Srgb};
+
+        let hsl = if is_light {
+            Hsl::new(hue, 0.70, 0.45)
+        } else {
+            Hsl::new(hue, 0.75, 0.60)
+        };
+
+        let rgb: Srgb = hsl.into_color();
+        Rgb([
+            (rgb.red * 255.0) as u8,
+            (rgb.green * 255.0) as u8,
+            (rgb.blue * 255.0) as u8,
+        ])
     }
 
     #[inline]
