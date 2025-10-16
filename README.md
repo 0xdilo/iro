@@ -174,11 +174,7 @@ Adjust saturation factor in `src/color_extractor.rs`:
 
 ### GUI is slow with many wallpapers
 
-iro uses async loading, but very large images may take time. Consider resizing wallpapers:
-
-```bash
-mogrify -resize 1920x1080 ~/Pictures/wallpaper/*.jpg
-```
+iro uses async loading, but very large images may take time. Consider resizing wallpapers.
 
 ## Development
 
@@ -186,37 +182,13 @@ mogrify -resize 1920x1080 ~/Pictures/wallpaper/*.jpg
 # Run in debug mode
 cargo run -- --gui
 
-# Run tests
-cargo test
-
 # Build release
 cargo build --release
 
-# Format code
-cargo fmt
 ```
-
-## Roadmap
-
-- [ ] Support for additional compositors (Sway, i3)
-- [ ] Color harmony algorithms (complementary, triadic)
-- [ ] Palette export (JSON, YAML)
-- [ ] Integration with Rofi/Wofi
-- [ ] Live wallpaper preview
-- [ ] Undo/redo color scheme history
-
-## License
-
-MIT License - See [LICENSE](LICENSE) for details
-
-## Credits
-
-Inspired by [pywal](https://github.com/dylanaraps/pywal) but built from scratch in Rust for maximum performance.
 
 ## Contributing
 
 Contributions welcome! Please open an issue or PR.
 
----
 
-**Made with 🦀 by [0xdilo](https://github.com/0xdilo)**
