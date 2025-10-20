@@ -2,7 +2,7 @@
 
 Fast wallpaper-based color scheme generator for Hyprland
 
-`iro` (色 - Japanese for "color") generates vibrant color schemes from wallpapers and automatically applies them to Hyprland, Waybar, and Kitty.
+`iro` (色 - Japanese for "color") generates vibrant color schemes from wallpapers and automatically applies them to Hyprland, Waybar, Kitty, and Rofi.
 
 ## Features
 
@@ -22,6 +22,7 @@ Fast wallpaper-based color scheme generator for Hyprland
 - `hyprpaper` for wallpaper management
 - Waybar (optional)
 - Kitty terminal (optional)
+- Rofi launcher (optional)
 
 ### Building
 
@@ -109,6 +110,7 @@ color_count = 16
 - `~/.config/hypr/hyprland.conf` - Hyprland colors (section replaced)
 - `~/.config/waybar/style.css` - Waybar theme
 - `~/.config/kitty/kitty.conf` - Kitty colors (section replaced)
+- `~/.config/rofi/config.rasi` - Rofi colors (section replaced)
 
 Original configs are backed up with `.iro.bak` extension.
 
