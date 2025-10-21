@@ -363,14 +363,11 @@ $error = rgb({})
         }
 
         // Now insert the new section before /* MAIN WINDOW if it exists
-        if result.contains("/* MAIN WINDOW") {
-            self.replace_section(
-                &result,
-                "/* ═══════════════════════════════════════════════════════════════════ */\n/* MAIN WINDOW",
-                "",
-                &format!("{}\n\n/* ═══════════════════════════════════════════════════════════════════ */\n/* MAIN WINDOW", new_section)
-            )
+        if let Some(main_window_pos) = result.find("/* ═══════════════════════════════════════════════════════════════════ */\n/* MAIN WINDOW") {
+            // Insert new_section before the MAIN WINDOW marker, preserving everything after
+            format!("{}{}\n\n{}", &result[..main_window_pos], new_section, &result[main_window_pos..])
         } else {
+            // No MAIN WINDOW section found, just append at the end
             format!("{}\n\n{}", result, new_section)
         }
     }
