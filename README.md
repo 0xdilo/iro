@@ -1,133 +1,77 @@
+```
+      /\_/\
+     ( o.o )  iro ~
+      > ^ <
+```
+
 # iro
 
-Fast wallpaper-based color scheme generator for Hyprland
+a smol wallpaper-based color scheme generator :3
 
-`iro` (色 - Japanese for "color") generates vibrant color schemes from wallpapers and automatically applies them to Hyprland, Waybar, Kitty, and Rofi.
+`iro` (色 - japanese for "color") extracts colors from wallpapers and applies them to hyprland, waybar, kitty, rofi, and quickshell.
 
-## Features
+## features
 
-- Intelligent color extraction with hue-based terminal color mapping
-- Fast async thumbnail loading
-- GUI wallpaper selector
-- Automatic theme application
-- Multi-monitor support
-- Configurable palette styles (lofi, nord, warm, muted)
+- intelligent color extraction with hue-based mapping
+- gui wallpaper selector
+- multi-monitor support
+- palette styles (lofi, nord, warm, muted)
+- auto-reload apps after theme change
 
-## Installation
+## supported apps
 
-### Prerequisites
+- hyprland
+- waybar
+- kitty
+- rofi
+- quickshell ([quickshell-dotfiles](https://github.com/0xdilo/quickshell-dotfiles))
 
-- Rust 1.70+
-- Hyprland
-- `hyprpaper` for wallpaper management
-- Waybar (optional)
-- Kitty terminal (optional)
-- Rofi launcher (optional)
-
-### Building
+## install
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/0xdilo/iro
 cd iro
 cargo build --release
 cp target/release/iro ~/.cargo/bin/
 ```
 
-## Quick Start
-
-### Initialize iro
+## usage
 
 ```bash
-iro --init
-```
-
-This creates:
-- `~/Pictures/wallpaper/` directory
-- `~/.config/iro/` config and templates
-- Shell integration in `.bashrc`/`.zshrc`
-
-### Add wallpapers
-
-```bash
-cp /path/to/wallpapers/* ~/Pictures/wallpaper/
-```
-
-## Usage
-
-### GUI Mode
-
-```bash
+# gui mode
 iro --gui
-```
 
-Browse wallpapers in a grid, search by filename, and apply themes with one click.
-
-### CLI Mode
-
-```bash
-# Generate theme from specific wallpaper
+# apply specific wallpaper
 iro /path/to/wallpaper.jpg
 
-# Random wallpaper (same on all monitors)
+# random wallpaper
 iro --random
 
-# Random wallpaper per monitor
+# random per monitor
 iro --random-each
-
-# Light theme
-iro /path/to/wallpaper.jpg --theme light
-
-# Specify monitors
-iro /path/to/wallpaper.jpg --monitors eDP-1,DP-3
 ```
 
-## Configuration
+## config
 
-Config file: `~/.config/iro/config.toml`
+`~/.config/iro/config.toml`:
 
 ```toml
 [theme]
-mode = "dark"  # "dark", "light", or "auto"
-dark_background_style = "extracted"  # "extracted", "pure-dark", or "custom"
-light_background_style = "extracted"  # "extracted", "pure-light", or "custom"
+mode = "dark"  # dark, light, auto
 
 [palette]
-style = "lofi"  # "lofi", "nord", "warm", "muted"
-diversity_threshold = 50.0
-color_count = 16
+style = "lofi"  # lofi, nord, warm, muted
 ```
 
-### Palette Styles
+## generated files
 
-- **lofi** - Calm balanced aesthetic
-- **nord** - Cool nordic minimal
-- **warm** - Cozy warm tones
-- **muted** - Soft neutral palette
+- `~/.config/iro/colors.sh` - shell variables
+- `~/.config/hypr/hyprland.conf` - hyprland colors
+- `~/.config/waybar/style.css` - waybar theme
+- `~/.config/kitty/kitty.conf` - kitty colors
+- `~/.config/rofi/config.rasi` - rofi colors
+- `~/Git/quick/Theme.qml` - quickshell theme
 
-### Generated Files
+## license
 
-- `~/.config/iro/colors.sh` - Shell color variables
-- `~/.config/hypr/hyprland.conf` - Hyprland colors (section replaced)
-- `~/.config/waybar/style.css` - Waybar theme
-- `~/.config/kitty/kitty.conf` - Kitty colors (section replaced)
-- `~/.config/rofi/config.rasi` - Rofi colors (section replaced)
-
-Original configs are backed up with `.iro.bak` extension.
-
-## How It Works
-
-1. **Color Extraction** - Extracts dominant colors from resized image
-2. **Hue Mapping** - Maps colors to proper terminal hues (red, yellow, green, cyan, blue, magenta)
-3. **Synthetic Generation** - Generates missing colors in hue ranges
-4. **Saturation Boost** - Enhances color vibrancy for better terminal visibility
-5. **Theme Application** - Updates config files and reloads applications
-
-## Development
-
-```bash
-# Run in debug mode
-cargo run -- --gui
-
-# Build release
-cargo build --release
-```
+do whatever u want with it lol
