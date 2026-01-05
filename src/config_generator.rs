@@ -46,6 +46,10 @@ impl ConfigGenerator {
         self.generate_shell_colors(color_scheme)
             .context("Failed to generate shell colors")?;
 
+        // Generate QuickShell theme
+        self.generate_quickshell_config(color_scheme)
+            .context("Failed to generate QuickShell config")?;
+
         println!("  ✓ Generated all configuration files");
         Ok(())
     }
@@ -222,6 +226,26 @@ impl ConfigGenerator {
         }
         
         println!("  ✓ Generated shell colors (source ~/.config/iro/colors.sh)");
+        Ok(())
+    }
+
+    fn generate_quickshell_config(&self, color_scheme: &ColorScheme) -> Result<()> {
+        let quickshell_dir = dirs::home_dir()
+            .context("Failed to get home directory")?
+            .join("Git/quick");
+
+        if !quickshell_dir.exists() {
+            return Ok(());
+        }
+
+        let theme_path = quickshell_dir.join("Theme.qml");
+
+        let rendered = self.template_engine.render_template("quickshell-theme.qml", color_scheme)?;
+
+        std::fs::write(&theme_path, rendered)
+            .context("Failed to write QuickShell theme")?;
+
+        println!("  ✓ Updated QuickShell theme");
         Ok(())
     }
 
