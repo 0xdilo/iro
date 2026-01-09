@@ -531,24 +531,10 @@ fn apply_theme_with_settings(wallpaper_path: &Path, theme: &str, style: &str) ->
 }
 
 fn reload_applications() -> Result<()> {
-    // Reload hyprland config
     std::process::Command::new("hyprctl")
         .args(["reload"])
         .output()
         .context("Failed to reload hyprland")?;
-
-    // Reload QuickShell
-    let quickshell_path = dirs::home_dir()
-        .map(|h| h.join("Git/quick"))
-        .filter(|p| p.exists());
-
-    if let Some(qs_path) = quickshell_path {
-        std::process::Command::new("quickshell")
-            .arg("-p")
-            .arg(&qs_path)
-            .spawn()
-            .ok();
-    }
 
     Ok(())
 }
