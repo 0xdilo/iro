@@ -327,10 +327,14 @@ impl ColorExtractor {
     fn generate_color_at_hue(&self, hue: f32, is_light: bool) -> Rgb<u8> {
         use palette::{Hsl, IntoColor, Srgb};
 
+        // Boost saturation for pink/magenta hues (270-345) to make them cuter
+        let is_pink_range = hue >= 270.0 && hue <= 345.0;
+        let sat_boost: f32 = if is_pink_range { 0.12 } else { 0.0 };
+
         let hsl = if is_light {
-            Hsl::new(hue, 0.70, 0.45)
+            Hsl::new(hue, (0.70_f32 + sat_boost).min(0.85), 0.50)
         } else {
-            Hsl::new(hue, 0.75, 0.60)
+            Hsl::new(hue, (0.78_f32 + sat_boost).min(0.92), 0.65)
         };
 
         let rgb: Srgb = hsl.into_color();

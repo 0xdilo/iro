@@ -6,6 +6,15 @@ use std::path::PathBuf;
 pub struct IroConfig {
     pub theme: ThemeConfig,
     pub palette: PaletteConfig,
+    /// Directory containing wallpaper images
+    #[serde(default = "default_wallpaper_dir")]
+    pub wallpaper_dir: String,
+}
+
+fn default_wallpaper_dir() -> String {
+    dirs::home_dir()
+        .map(|h| h.join("Pictures").join("Wallpaper").to_string_lossy().to_string())
+        .unwrap_or_else(|| "~/Pictures/Wallpaper".to_string())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,10 +77,37 @@ pub struct PaletteStyle {
 impl PaletteStyle {
     pub fn from_name(name: &str) -> Self {
         match name {
+            "kawaii" => Self {
+                description: "Cute pink aesthetic",
+                dark_saturation: 0.55,
+                light_saturation: 0.50,
+                dark_brightness: 0.88,
+                light_brightness: 0.92,
+                contrast: 0.75,
+                warmth_shift: 0.25, // Shift towards pink/magenta
+            },
+            "pastel" => Self {
+                description: "Soft dreamy pastels",
+                dark_saturation: 0.45,
+                light_saturation: 0.40,
+                dark_brightness: 0.90,
+                light_brightness: 0.95,
+                contrast: 0.60,
+                warmth_shift: 0.10,
+            },
+            "vivid" => Self {
+                description: "Bold vibrant colors",
+                dark_saturation: 0.65,
+                light_saturation: 0.55,
+                dark_brightness: 0.85,
+                light_brightness: 0.88,
+                contrast: 0.85,
+                warmth_shift: 0.0,
+            },
             "nord" => Self {
                 description: "Cool nordic minimal",
                 dark_saturation: 0.35,
-                light_saturation: 0.3,
+                light_saturation: 0.30,
                 dark_brightness: 0.82,
                 light_brightness: 0.88,
                 contrast: 0.65,
@@ -79,12 +115,12 @@ impl PaletteStyle {
             },
             "warm" => Self {
                 description: "Cozy warm tones",
-                dark_saturation: 0.4,
-                light_saturation: 0.35,
+                dark_saturation: 0.45,
+                light_saturation: 0.40,
                 dark_brightness: 0.85,
                 light_brightness: 0.88,
-                contrast: 0.68,
-                warmth_shift: 0.15,
+                contrast: 0.70,
+                warmth_shift: 0.18,
             },
             "muted" => Self {
                 description: "Soft neutral palette",
@@ -97,12 +133,12 @@ impl PaletteStyle {
             },
             _ => Self { // "lofi" default
                 description: "Calm balanced aesthetic",
-                dark_saturation: 0.42,
-                light_saturation: 0.37,
-                dark_brightness: 0.85,
-                light_brightness: 0.88,
-                contrast: 0.7,
-                warmth_shift: 0.05,
+                dark_saturation: 0.48,
+                light_saturation: 0.42,
+                dark_brightness: 0.86,
+                light_brightness: 0.90,
+                contrast: 0.72,
+                warmth_shift: 0.08,
             },
         }
     }
@@ -110,6 +146,9 @@ impl PaletteStyle {
     pub fn all_styles() -> Vec<&'static str> {
         vec![
             "lofi",
+            "kawaii",
+            "pastel",
+            "vivid",
             "nord",
             "warm",
             "muted",
@@ -135,6 +174,7 @@ impl Default for IroConfig {
                 light_brightness: 0.88,
                 color_count: 16,
             },
+            wallpaper_dir: default_wallpaper_dir(),
         }
     }
 }
@@ -181,5 +221,10 @@ impl IroConfig {
         let config_dir = dirs::config_dir()
             .context("Failed to get config directory")?;
         Ok(config_dir.join("iro").join("config.toml"))
+    }
+
+    pub fn wallpaper_path(&self) -> PathBuf {
+        let expanded = shellexpand::tilde(&self.wallpaper_dir);
+        PathBuf::from(expanded.as_ref())
     }
 }

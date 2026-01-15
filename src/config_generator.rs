@@ -30,25 +30,29 @@ impl ConfigGenerator {
         self.generate_hyprland_config(color_scheme)
             .context("Failed to generate Hyprland config")?;
 
-        // Generate Waybar config
-        self.generate_waybar_config(color_scheme)
-            .context("Failed to generate Waybar config")?;
+        // Generate Waybar config (optional)
+        if let Err(e) = self.generate_waybar_config(color_scheme) {
+            println!("  ⊘ Skipped Waybar ({})", e.root_cause());
+        }
 
-        // Generate Kitty config
-        self.generate_kitty_config(color_scheme)
-            .context("Failed to generate Kitty config")?;
+        // Generate Kitty config (optional)
+        if let Err(e) = self.generate_kitty_config(color_scheme) {
+            println!("  ⊘ Skipped Kitty ({})", e.root_cause());
+        }
 
-        // Generate Rofi config
-        self.generate_rofi_config(color_scheme)
-            .context("Failed to generate Rofi config")?;
+        // Generate Rofi config (optional)
+        if let Err(e) = self.generate_rofi_config(color_scheme) {
+            println!("  ⊘ Skipped Rofi ({})", e.root_cause());
+        }
 
         // Generate shell colors
         self.generate_shell_colors(color_scheme)
             .context("Failed to generate shell colors")?;
 
-        // Generate QuickShell theme
-        self.generate_quickshell_config(color_scheme)
-            .context("Failed to generate QuickShell config")?;
+        // Generate QuickShell theme (optional)
+        if let Err(e) = self.generate_quickshell_config(color_scheme) {
+            println!("  ⊘ Skipped QuickShell ({})", e.root_cause());
+        }
 
         println!("  ✓ Generated all configuration files");
         Ok(())
@@ -92,25 +96,33 @@ impl ConfigGenerator {
 
     fn generate_waybar_config(&self, color_scheme: &ColorScheme) -> Result<()> {
         let waybar_dir = self.config_dir.join("waybar");
+        if !waybar_dir.exists() {
+            anyhow::bail!("not installed");
+        }
+
         let style_path = waybar_dir.join("style.css");
-        
+
         // Backup original style
         self.backup_config(&style_path)?;
-        
+
         // Generate new CSS with dynamic colors
         let rendered_css = self.template_engine.render_template("waybar.css", color_scheme)?;
-        
+
         std::fs::write(&style_path, rendered_css)
             .context("Failed to write Waybar style")?;
-        
+
         println!("  ✓ Updated Waybar colors");
         Ok(())
     }
 
     fn generate_kitty_config(&self, color_scheme: &ColorScheme) -> Result<()> {
         let kitty_dir = self.config_dir.join("kitty");
+        if !kitty_dir.exists() {
+            anyhow::bail!("not installed");
+        }
+
         let config_path = kitty_dir.join("kitty.conf");
-        
+
         // Backup original config
         self.backup_config(&config_path)?;
         
@@ -155,6 +167,10 @@ impl ConfigGenerator {
 
     fn generate_rofi_config(&self, color_scheme: &ColorScheme) -> Result<()> {
         let rofi_dir = self.config_dir.join("rofi");
+        if !rofi_dir.exists() {
+            anyhow::bail!("not installed");
+        }
+
         let config_path = rofi_dir.join("config.rasi");
 
         // Backup original config
@@ -230,13 +246,19 @@ impl ConfigGenerator {
     }
 
     fn generate_quickshell_config(&self, color_scheme: &ColorScheme) -> Result<()> {
-        let quickshell_dir = dirs::home_dir()
-            .context("Failed to get home directory")?
-            .join("Git/quick");
+        // Check multiple possible quickshell locations
+        let home = dirs::home_dir().context("Failed to get home directory")?;
+        let possible_paths = [
+            self.config_dir.join("quickshell"),
+            home.join("Git/quick"),
+            home.join(".config/quickshell"),
+        ];
 
-        if !quickshell_dir.exists() {
-            return Ok(());
-        }
+        let quickshell_dir = possible_paths.iter().find(|p| p.exists());
+        let quickshell_dir = match quickshell_dir {
+            Some(dir) => dir,
+            None => anyhow::bail!("not installed"),
+        };
 
         let theme_path = quickshell_dir.join("Theme.qml");
 

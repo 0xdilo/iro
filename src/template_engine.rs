@@ -40,14 +40,15 @@ impl TemplateEngine {
             }
         }
 
-        // Named colors for convenience - use array slicing to avoid repeated get calls
+        // Named colors for convenience - matches color_extractor.rs hue order:
+        // 1=red(345-30°), 2=yellow(30-90°), 3=green(90-150°), 4=cyan(150-210°), 5=blue(210-270°), 6=magenta(270-345°)
         let named_colors = [
             ("{{ red }}", 1),
-            ("{{ green }}", 2),
-            ("{{ yellow }}", 3),
-            ("{{ blue }}", 4),
-            ("{{ magenta }}", 5),
-            ("{{ cyan }}", 6),
+            ("{{ yellow }}", 2),
+            ("{{ green }}", 3),
+            ("{{ cyan }}", 4),
+            ("{{ blue }}", 5),
+            ("{{ magenta }}", 6),
             ("{{ white }}", 7),
         ];
 
@@ -66,6 +67,7 @@ impl TemplateEngine {
         self.create_kitty_template()?;
         self.create_shell_colors_template()?;
         self.create_rofi_template()?;
+        self.create_quickshell_template()?;
         Ok(())
     }
 
@@ -386,6 +388,53 @@ export FZF_DEFAULT_OPTS="--color=bg+:{{ surface }},bg:{{ background }},spinner:{
         std::fs::write(&template_path, template_content)
             .context("Failed to write rofi template")?;
         println!("  ✓ Created rofi template");
+        Ok(())
+    }
+
+    fn create_quickshell_template(&self) -> Result<()> {
+        let template_path = self.templates_dir.join("quickshell-theme.qml");
+        if template_path.exists() {
+            return Ok(()); // Don't overwrite existing templates
+        }
+
+        let template_content = r#"pragma Singleton
+import QtQuick
+
+QtObject {
+    readonly property color background: "{{ background }}"
+    readonly property color surface: "{{ surface }}"
+    readonly property color surfaceHigh: Qt.lighter(surface, 1.15)
+    readonly property color foreground: "{{ foreground }}"
+    readonly property color muted: "{{ colors.8 }}"
+
+    readonly property color accent: "{{ accent }}"
+    readonly property color secondary: "{{ secondary }}"
+
+    readonly property color red: "{{ red }}"
+    readonly property color yellow: "{{ yellow }}"
+    readonly property color green: "{{ green }}"
+    readonly property color cyan: "{{ cyan }}"
+    readonly property color blue: "{{ blue }}"
+    readonly property color magenta: "{{ magenta }}"
+    readonly property color pink: "{{ magenta }}"
+    readonly property color error: "{{ error }}"
+    readonly property color success: "{{ green }}"
+
+    readonly property color bgAlpha90: Qt.rgba(background.r, background.g, background.b, 0.94)
+    readonly property color bgAlpha80: Qt.rgba(background.r, background.g, background.b, 0.88)
+    readonly property color bgAlpha50: Qt.rgba(0, 0, 0, 0.5)
+
+    readonly property color border: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.08)
+    readonly property color borderLight: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.04)
+    readonly property color glow: Qt.rgba(accent.r, accent.g, accent.b, 0.25)
+
+    readonly property string fontFamily: "JetBrainsMono Nerd Font"
+}
+"#;
+
+        std::fs::write(&template_path, template_content)
+            .context("Failed to write quickshell template")?;
+        println!("  ✓ Created quickshell template");
         Ok(())
     }
 }

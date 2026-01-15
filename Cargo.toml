@@ -16,6 +16,7 @@ egui_extras = { version = "0.28", features = ["image"] }
 rand = "0.8"
 toml = "0.8"
 palette = "0.7"
+shellexpand = "3.1"
 
 [[bin]]
 name = "iro"
