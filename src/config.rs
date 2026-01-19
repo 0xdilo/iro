@@ -311,7 +311,7 @@ impl Default for IroConfig {
                 light_background_custom: None,
             },
             palette: PaletteConfig {
-                style: "lofi".to_string(),
+                style: "tokyo-night".to_string(),
                 diversity_threshold: 50.0,
                 dark_saturation: 0.42,
                 light_saturation: 0.37,
