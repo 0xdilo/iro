@@ -1,6 +1,6 @@
+use crate::{template_engine::TemplateEngine, ColorScheme};
 use anyhow::{Context, Result};
 use std::path::PathBuf;
-use crate::{ColorScheme, template_engine::TemplateEngine};
 
 pub struct ConfigGenerator {
     template_engine: TemplateEngine,
@@ -9,14 +9,13 @@ pub struct ConfigGenerator {
 
 impl ConfigGenerator {
     pub fn new() -> Result<Self> {
-        let config_dir = dirs::config_dir()
-            .context("Failed to get config directory")?;
-        
+        let config_dir = dirs::config_dir().context("Failed to get config directory")?;
+
         let template_engine = TemplateEngine::new()?;
-        
+
         // Create default templates if they don't exist
         template_engine.create_default_templates()?;
-        
+
         Ok(Self {
             template_engine,
             config_dir,
@@ -61,35 +60,44 @@ impl ConfigGenerator {
     fn generate_hyprland_config(&self, color_scheme: &ColorScheme) -> Result<()> {
         let hyprland_dir = self.config_dir.join("hypr");
         let config_path = hyprland_dir.join("hyprland.conf");
-        
+
         // Backup original config if it exists and no backup exists
         self.backup_config(&config_path)?;
-        
+
         // Read the current config to preserve non-color settings
         let current_config = if config_path.exists() {
             std::fs::read_to_string(&config_path).unwrap_or_default()
         } else {
             String::new()
         };
-        
+
         // Generate the color section
         let color_section = self.generate_hyprland_colors(color_scheme)?;
-        
+
         // Replace or add color section in the config
         let updated_config = if current_config.contains("# Dynamic Color scheme") {
             // Replace existing dynamic colors
-            self.replace_section(&current_config, "# Dynamic Color scheme", "# General settings", &color_section)
+            self.replace_section(
+                &current_config,
+                "# Dynamic Color scheme",
+                "# General settings",
+                &color_section,
+            )
         } else if current_config.contains("# Color scheme") {
             // Replace old static color scheme
-            self.replace_section(&current_config, "# Color scheme", "# General settings", &color_section)
+            self.replace_section(
+                &current_config,
+                "# Color scheme",
+                "# General settings",
+                &color_section,
+            )
         } else {
             // Add color section after input section
             self.insert_after_section(&current_config, "}", &color_section)
         };
-        
-        std::fs::write(&config_path, updated_config)
-            .context("Failed to write Hyprland config")?;
-        
+
+        std::fs::write(&config_path, updated_config).context("Failed to write Hyprland config")?;
+
         println!("  ✓ Updated Hyprland colors");
         Ok(())
     }
@@ -106,10 +114,11 @@ impl ConfigGenerator {
         self.backup_config(&style_path)?;
 
         // Generate new CSS with dynamic colors
-        let rendered_css = self.template_engine.render_template("waybar.css", color_scheme)?;
+        let rendered_css = self
+            .template_engine
+            .render_template("waybar.css", color_scheme)?;
 
-        std::fs::write(&style_path, rendered_css)
-            .context("Failed to write Waybar style")?;
+        std::fs::write(&style_path, rendered_css).context("Failed to write Waybar style")?;
 
         println!("  ✓ Updated Waybar colors");
         Ok(())
@@ -125,26 +134,28 @@ impl ConfigGenerator {
 
         // Backup original config
         self.backup_config(&config_path)?;
-        
+
         // Read current config to preserve non-color settings
         let current_config = if config_path.exists() {
             std::fs::read_to_string(&config_path).unwrap_or_default()
         } else {
             String::new()
         };
-        
+
         // Generate color section
         let color_section = self.generate_kitty_colors(color_scheme)?;
-        
+
         // Replace or add color section
         let updated_config = if current_config.contains("# DYNAMIC COLOR SCHEME") {
             // Replace existing dynamic colors
-            self.replace_section(&current_config, 
-                "# ═══════════════════════════════════════════════════════════════════\n# DYNAMIC COLOR SCHEME", 
-                "# ═══════════════════════════════════════════════════════════════════\n# TAB BAR", 
-                &color_section)
+            self.replace_section(
+                &current_config,
+                "# ═══════════════════════════════════════════════════════════════════\n# DYNAMIC COLOR SCHEME",
+                "# ═══════════════════════════════════════════════════════════════════\n# TAB BAR",
+                &color_section,
+            )
         } else if current_config.contains("# ROSE PINE DAWN x TOKYO NIGHT COLOR SCHEME") {
-            // Replace old static color scheme  
+            // Replace old static color scheme
             self.replace_section(&current_config,
                 "# ═══════════════════════════════════════════════════════════════════\n# ROSE PINE DAWN x TOKYO NIGHT COLOR SCHEME",
                 "# ═══════════════════════════════════════════════════════════════════\n# TAB BAR",
@@ -157,10 +168,9 @@ impl ConfigGenerator {
                 format!("{}\n\n{}", current_config, color_section)
             }
         };
-        
-        std::fs::write(&config_path, updated_config)
-            .context("Failed to write Kitty config")?;
-        
+
+        std::fs::write(&config_path, updated_config).context("Failed to write Kitty config")?;
+
         println!("  ✓ Updated Kitty colors");
         Ok(())
     }
@@ -184,7 +194,9 @@ impl ConfigGenerator {
         };
 
         // Generate color section from template
-        let color_section = self.template_engine.render_template("rofi.rasi", color_scheme)?;
+        let color_section = self
+            .template_engine
+            .render_template("rofi.rasi", color_scheme)?;
 
         // Replace or add color section
         let updated_config = if current_config.contains("/* DYNAMIC COLOR SCHEME") {
@@ -212,16 +224,17 @@ impl ConfigGenerator {
             }
         };
 
-        std::fs::write(&config_path, updated_config)
-            .context("Failed to write Rofi config")?;
+        std::fs::write(&config_path, updated_config).context("Failed to write Rofi config")?;
 
         println!("  ✓ Updated Rofi colors");
         Ok(())
     }
 
     fn generate_shell_colors(&self, color_scheme: &ColorScheme) -> Result<()> {
-        let shell_colors = self.template_engine.render_template("shell_colors.sh", color_scheme)?;
-        
+        let shell_colors = self
+            .template_engine
+            .render_template("shell_colors.sh", color_scheme)?;
+
         // Write to iro config directory
         let iro_dir = dirs::config_dir()
             .context("Failed to get config directory")?
@@ -229,9 +242,8 @@ impl ConfigGenerator {
         std::fs::create_dir_all(&iro_dir)?;
 
         let shell_colors_path = iro_dir.join("colors.sh");
-        std::fs::write(&shell_colors_path, shell_colors)
-            .context("Failed to write shell colors")?;
-        
+        std::fs::write(&shell_colors_path, shell_colors).context("Failed to write shell colors")?;
+
         // Make it executable
         #[cfg(unix)]
         {
@@ -240,7 +252,7 @@ impl ConfigGenerator {
             perms.set_mode(0o755);
             std::fs::set_permissions(&shell_colors_path, perms)?;
         }
-        
+
         println!("  ✓ Generated shell colors (source ~/.config/iro/colors.sh)");
         Ok(())
     }
@@ -262,17 +274,19 @@ impl ConfigGenerator {
 
         let theme_path = quickshell_dir.join("Theme.qml");
 
-        let rendered = self.template_engine.render_template("quickshell-theme.qml", color_scheme)?;
+        let rendered = self
+            .template_engine
+            .render_template("quickshell-theme.qml", color_scheme)?;
 
-        std::fs::write(&theme_path, rendered)
-            .context("Failed to write QuickShell theme")?;
+        std::fs::write(&theme_path, rendered).context("Failed to write QuickShell theme")?;
 
         println!("  ✓ Updated QuickShell theme");
         Ok(())
     }
 
     fn generate_hyprland_colors(&self, color_scheme: &ColorScheme) -> Result<String> {
-        Ok(format!(r#"
+        Ok(format!(
+            r#"
 # Dynamic Color scheme - Generated by iro
 $red = rgb({})
 $blue = rgb({})
@@ -288,10 +302,26 @@ $mantle = rgb(292c3c)
 $crust = rgb(232634)
 $error = rgb({})
 "#,
-            color_scheme.colors.get(1).unwrap_or(&"#e78284".to_string()).trim_start_matches('#'),
-            color_scheme.colors.get(4).unwrap_or(&"#8caaee".to_string()).trim_start_matches('#'),
-            color_scheme.colors.get(3).unwrap_or(&"#e5c890".to_string()).trim_start_matches('#'),
-            color_scheme.colors.get(5).unwrap_or(&"#ca9ee6".to_string()).trim_start_matches('#'),
+            color_scheme
+                .colors
+                .get(1)
+                .unwrap_or(&"#e78284".to_string())
+                .trim_start_matches('#'),
+            color_scheme
+                .colors
+                .get(4)
+                .unwrap_or(&"#8caaee".to_string())
+                .trim_start_matches('#'),
+            color_scheme
+                .colors
+                .get(3)
+                .unwrap_or(&"#e5c890".to_string())
+                .trim_start_matches('#'),
+            color_scheme
+                .colors
+                .get(5)
+                .unwrap_or(&"#ca9ee6".to_string())
+                .trim_start_matches('#'),
             color_scheme.accent.trim_start_matches('#'),
             color_scheme.secondary.trim_start_matches('#'),
             color_scheme.foreground.trim_start_matches('#'),
@@ -307,15 +337,31 @@ $error = rgb({})
 
         output.push_str("# ═══════════════════════════════════════════════════════════════════\n");
         output.push_str("# DYNAMIC COLOR SCHEME - Generated by iro\n");
-        output.push_str("# ═══════════════════════════════════════════════════════════════════\n\n");
+        output
+            .push_str("# ═══════════════════════════════════════════════════════════════════\n\n");
         output.push_str("# Background and foreground\n");
-        output.push_str(&format!("foreground            {}\n", color_scheme.foreground));
-        output.push_str(&format!("background            {}\n", color_scheme.background));
-        output.push_str(&format!("selection_foreground  {}\n", color_scheme.background));
-        output.push_str(&format!("selection_background  {}\n\n", color_scheme.accent));
+        output.push_str(&format!(
+            "foreground            {}\n",
+            color_scheme.foreground
+        ));
+        output.push_str(&format!(
+            "background            {}\n",
+            color_scheme.background
+        ));
+        output.push_str(&format!(
+            "selection_foreground  {}\n",
+            color_scheme.background
+        ));
+        output.push_str(&format!(
+            "selection_background  {}\n\n",
+            color_scheme.accent
+        ));
         output.push_str("# Cursor colors\n");
         output.push_str(&format!("cursor                {}\n", color_scheme.accent));
-        output.push_str(&format!("cursor_text_color     {}\n\n", color_scheme.background));
+        output.push_str(&format!(
+            "cursor_text_color     {}\n\n",
+            color_scheme.background
+        ));
         output.push_str("# Terminal colors (0-15)\n");
 
         for (i, color) in color_scheme.colors.iter().enumerate() {
@@ -323,10 +369,22 @@ $error = rgb({})
         }
 
         output.push_str("\n# Tab colors\n");
-        output.push_str(&format!("active_tab_foreground   {}\n", color_scheme.background));
-        output.push_str(&format!("active_tab_background   {}\n", color_scheme.accent));
-        output.push_str(&format!("inactive_tab_foreground {}\n", color_scheme.secondary));
-        output.push_str(&format!("inactive_tab_background {}\n\n\n", color_scheme.background));
+        output.push_str(&format!(
+            "active_tab_foreground   {}\n",
+            color_scheme.background
+        ));
+        output.push_str(&format!(
+            "active_tab_background   {}\n",
+            color_scheme.accent
+        ));
+        output.push_str(&format!(
+            "inactive_tab_foreground {}\n",
+            color_scheme.secondary
+        ));
+        output.push_str(&format!(
+            "inactive_tab_background {}\n\n\n",
+            color_scheme.background
+        ));
         output.push_str("# Window borders\n");
         output.push_str(&format!("active_border_color   {}\n", color_scheme.accent));
         output.push_str(&format!("inactive_border_color {}\n", color_scheme.surface));
@@ -341,16 +399,25 @@ $error = rgb({})
             if !backup_path.exists() {
                 std::fs::copy(config_path, &backup_path)
                     .with_context(|| format!("Failed to backup {}", config_path.display()))?;
-                println!("  💾 Backed up original config to {}", backup_path.display());
+                println!(
+                    "  💾 Backed up original config to {}",
+                    backup_path.display()
+                );
             }
         }
         Ok(())
     }
 
-    fn replace_section(&self, content: &str, start_marker: &str, end_marker: &str, replacement: &str) -> String {
+    fn replace_section(
+        &self,
+        content: &str,
+        start_marker: &str,
+        end_marker: &str,
+        replacement: &str,
+    ) -> String {
         if let Some(start_pos) = content.find(start_marker) {
             let before = &content[..start_pos];
-            
+
             if end_marker.is_empty() {
                 format!("{}{}", before, replacement)
             } else if let Some(end_pos) = content[start_pos..].find(end_marker) {
@@ -381,7 +448,9 @@ $error = rgb({})
         // Pattern to match: /* ═══...═══ */\n/* DYNAMIC COLOR SCHEME...*/\n\n* { ... }\n\n
         // Keep removing until no more dynamic sections are found
         loop {
-            if let Some(start_pos) = result.find("/* ═══════════════════════════════════════════════════════════════════ */") {
+            if let Some(start_pos) = result
+                .find("/* ═══════════════════════════════════════════════════════════════════ */")
+            {
                 // Check if this is followed by DYNAMIC COLOR SCHEME
                 let after_divider = &result[start_pos..];
                 if let Some(dynamic_pos) = after_divider.find("/* DYNAMIC COLOR SCHEME") {
@@ -395,7 +464,8 @@ $error = rgb({})
 
                         // Skip any extra newlines after the closing brace
                         let mut final_end = section_end;
-                        while final_end < result.len() && &result[final_end..final_end+1] == "\n" {
+                        while final_end < result.len() && &result[final_end..final_end + 1] == "\n"
+                        {
                             final_end += 1;
                         }
 

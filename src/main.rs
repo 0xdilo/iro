@@ -3,15 +3,15 @@ use clap::{Arg, Command};
 use std::path::PathBuf;
 
 mod color_extractor;
-mod template_engine;
+mod config;
 mod config_generator;
 mod gui;
-mod config;
 mod palette;
+mod template_engine;
 
 use color_extractor::ColorExtractor;
-use template_engine::TemplateEngine;
 use config_generator::ConfigGenerator;
+use template_engine::TemplateEngine;
 
 #[derive(Debug, Clone)]
 pub struct ColorScheme {
@@ -126,7 +126,9 @@ fn main() -> Result<()> {
             .unwrap_or_default();
 
         if wallpapers.is_empty() {
-            anyhow::bail!("Error: Wallpaper path(s) required (or use --gui/--random/--random-each)");
+            anyhow::bail!(
+                "Error: Wallpaper path(s) required (or use --gui/--random/--random-each)"
+            );
         }
 
         let paths: Vec<PathBuf> = wallpapers.iter().map(PathBuf::from).collect();
@@ -134,19 +136,22 @@ fn main() -> Result<()> {
         (paths, primary)
     };
 
-    println!("🎨 iro - Generating color scheme from: {}", primary_wallpaper.display());
+    println!(
+        "🎨 iro - Generating color scheme from: {}",
+        primary_wallpaper.display()
+    );
 
     // Extract colors from primary wallpaper
     let extractor = ColorExtractor::new()?;
     let color_scheme = extractor.extract_colors(&primary_wallpaper, theme)?;
-    
+
     println!("✨ Extracted color scheme:");
     print_color_scheme(&color_scheme);
-    
+
     // Generate configurations
     let config_gen = ConfigGenerator::new()?;
     config_gen.generate_configs(&color_scheme)?;
-    
+
     // Set wallpapers
     set_wallpapers(&wallpaper_paths, monitors)?;
 
@@ -155,7 +160,7 @@ fn main() -> Result<()> {
         println!("🔄 Reloading applications...");
         reload_applications()?;
     }
-    
+
     println!("✅ Color scheme applied successfully!");
     Ok(())
 }
@@ -182,7 +187,7 @@ fn open_wallpaper_picker() -> Result<PathBuf> {
     // Launch the Rust GUI
     println!("🎨 Launching iro GUI viewer...");
     gui::launch_gui()?;
-    
+
     // GUI handles everything, so we can exit
     std::process::exit(0);
 }
@@ -223,8 +228,7 @@ fn set_wallpapers(wallpaper_paths: &[PathBuf], monitors: Option<&String>) -> Res
     }
 
     // Write config (for persistence on restart)
-    std::fs::write(&hyprpaper_conf, &config_content)
-        .context("Failed to write hyprpaper.conf")?;
+    std::fs::write(&hyprpaper_conf, &config_content).context("Failed to write hyprpaper.conf")?;
 
     // Check if hyprpaper is running
     let hyprpaper_running = std::process::Command::new("pgrep")
@@ -251,10 +255,18 @@ fn set_wallpapers(wallpaper_paths: &[PathBuf], monitors: Option<&String>) -> Res
         let wallpaper_str = wallpaper_path.to_str().unwrap();
 
         let _ = std::process::Command::new("hyprctl")
-            .args(["hyprpaper", "wallpaper", &format!("{},{}", monitor, wallpaper_str)])
+            .args([
+                "hyprpaper",
+                "wallpaper",
+                &format!("{},{}", monitor, wallpaper_str),
+            ])
             .output();
 
-        println!("  ✓ Set {} on {}", wallpaper_path.file_name().unwrap().to_string_lossy(), monitor);
+        println!(
+            "  ✓ Set {} on {}",
+            wallpaper_path.file_name().unwrap().to_string_lossy(),
+            monitor
+        );
     }
 
     Ok(())
@@ -266,8 +278,8 @@ fn get_all_monitors() -> Result<Vec<String>> {
         .output()
         .context("Failed to get monitors")?;
 
-    let monitors_json: serde_json::Value = serde_json::from_slice(&output.stdout)
-        .context("Failed to parse monitors JSON")?;
+    let monitors_json: serde_json::Value =
+        serde_json::from_slice(&output.stdout).context("Failed to parse monitors JSON")?;
 
     Ok(monitors_json
         .as_array()
@@ -295,10 +307,11 @@ fn get_wallpapers_list() -> Result<Vec<PathBuf>> {
         .filter_map(Result::ok)
         .map(|e| e.path())
         .filter(|path| {
-            path.is_file() && matches!(
-                path.extension().and_then(|s| s.to_str()),
-                Some("jpg" | "jpeg" | "png" | "webp")
-            )
+            path.is_file()
+                && matches!(
+                    path.extension().and_then(|s| s.to_str()),
+                    Some("jpg" | "jpeg" | "png" | "webp")
+                )
         })
         .collect();
 
@@ -317,12 +330,18 @@ fn select_random_wallpaper() -> Result<PathBuf> {
     let mut rng = thread_rng();
     let selected = wallpapers.choose(&mut rng).unwrap().clone();
 
-    println!("🎲 Selected random wallpaper: {}", selected.file_name().unwrap().to_string_lossy());
+    println!(
+        "🎲 Selected random wallpaper: {}",
+        selected.file_name().unwrap().to_string_lossy()
+    );
 
     Ok(selected)
 }
 
-fn get_random_wallpapers_per_monitor(monitors: Option<&String>, primary_index: usize) -> Result<(Vec<PathBuf>, PathBuf)> {
+fn get_random_wallpapers_per_monitor(
+    monitors: Option<&String>,
+    primary_index: usize,
+) -> Result<(Vec<PathBuf>, PathBuf)> {
     use rand::seq::SliceRandom;
     use rand::thread_rng;
 
@@ -347,7 +366,11 @@ fn get_random_wallpapers_per_monitor(monitors: Option<&String>, primary_index: u
     println!("🎲 Selecting random wallpaper for each monitor:");
     for monitor in &monitor_list {
         if let Some(selected) = available_wallpapers.choose(&mut rng).cloned() {
-            println!("  {} → {}", monitor, selected.file_name().unwrap().to_string_lossy());
+            println!(
+                "  {} → {}",
+                monitor,
+                selected.file_name().unwrap().to_string_lossy()
+            );
             selected_wallpapers.push(selected.clone());
 
             // Remove selected to avoid duplicates if possible
@@ -420,7 +443,10 @@ fn run_init() -> Result<()> {
     println!("\n📝 Next steps:");
     println!("  1. Add wallpapers to {}", wallpaper_dir.display());
     println!("  2. Run: iro --gui");
-    println!("  3. Restart your shell or run: source {}", shell_rc.display());
+    println!(
+        "  3. Restart your shell or run: source {}",
+        shell_rc.display()
+    );
     println!("\n💡 Optional: Add to your hyprland.conf for automatic wallpaper on startup:");
     println!("    exec-once = iro --random");
     println!("\n⚙️  Config: ~/.config/iro/config.toml");
